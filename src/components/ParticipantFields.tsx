@@ -1,5 +1,6 @@
 import { Field, Select } from "@/components/form";
-import { LIFESTAGE_OPTIONS, MOBILE_NUMBER_HELP, MOBILE_NUMBER_PATTERN, SERVICE_OPTIONS } from "@/lib/constants";
+import { ServiceSelect } from "@/components/ServiceSelect";
+import { LIFESTAGE_OPTIONS, MOBILE_NUMBER_HELP, MOBILE_NUMBER_PATTERN } from "@/lib/constants";
 import type { Participant } from "@/db/schema";
 
 /**
@@ -30,7 +31,7 @@ export function ParticipantFields({
         defaultValue={defaultValues?.contactNumber}
         autoComplete="tel"
       />
-      <Select label="Service attended" name="serviceAttended" options={SERVICE_OPTIONS} defaultValue={defaultValues?.serviceAttended} />
+      <ServiceSelect defaultValue={defaultValues?.serviceAttended} />
       <Select label="Lifestage" name="lifestage" options={LIFESTAGE_OPTIONS} defaultValue={defaultValues?.lifestage} />
       {showStatus && <Field label="Status" name="status" defaultValue={defaultValues?.status ?? "Registered"} />}
     </div>

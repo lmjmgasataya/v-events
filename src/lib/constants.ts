@@ -20,6 +20,10 @@ export const SERVICE_OPTIONS = [
   "1PM - Lapaz",
 ] as const;
 
+// Dropdown choice that reveals a free-text "please specify" input (e.g. "Life Iloilo").
+// Never stored itself — the typed text is saved as serviceAttended instead.
+export const OTHER_SERVICE = "Others";
+
 export const DEFAULT_STATUS = "Registered";
 
 export const SOURCE_LABELS: Record<string, string> = {

@@ -1,4 +1,4 @@
-import { DEFAULT_STATUS, MOBILE_NUMBER_HELP, MOBILE_NUMBER_REGEX } from "@/lib/constants";
+import { DEFAULT_STATUS, MOBILE_NUMBER_HELP, MOBILE_NUMBER_REGEX, OTHER_SERVICE } from "@/lib/constants";
 import { normalizeService } from "@/lib/services";
 
 // Shared FormData parsing/validation for every way a participant gets added
@@ -18,11 +18,13 @@ function str(formData: FormData, key: string): string {
 }
 
 export function readParticipantInput(formData: FormData): ParticipantInput {
+  const serviceChoice = str(formData, "serviceAttended");
   return {
     lastName: str(formData, "lastName"),
     firstName: str(formData, "firstName"),
     contactNumber: normalizeContactNumber(str(formData, "contactNumber")),
-    serviceAttended: str(formData, "serviceAttended"),
+    // "Others" in the dropdown → use the typed "please specify" text instead (see ServiceSelect)
+    serviceAttended: serviceChoice === OTHER_SERVICE ? str(formData, "serviceAttendedOther") : serviceChoice,
     lifestage: str(formData, "lifestage"),
     status: str(formData, "status") || DEFAULT_STATUS,
   };
