@@ -1,4 +1,5 @@
 import { DEFAULT_STATUS, MOBILE_NUMBER_HELP, MOBILE_NUMBER_REGEX } from "@/lib/constants";
+import { normalizeService } from "@/lib/services";
 
 // Shared FormData parsing/validation for every way a participant gets added
 // (staff form, walk-in at check-in, public registration link). Edit here once.
@@ -48,7 +49,7 @@ export function toParticipantValues(input: ParticipantInput) {
     lastName: input.lastName,
     firstName: input.firstName,
     contactNumber: input.contactNumber,
-    serviceAttended: input.serviceAttended || null,
+    serviceAttended: normalizeService(input.serviceAttended),
     lifestage: input.lifestage || null,
     status: input.status || DEFAULT_STATUS,
   };

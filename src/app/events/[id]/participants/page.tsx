@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, isNotNull, isNull, or, type SQL } from "drizzle-orm";
+import { and, asc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { participants } from "@/db/schema";
 import { getEventOrNotFound } from "@/lib/events";
@@ -7,6 +7,9 @@ import { AddParticipantModal } from "./AddParticipantModal";
 import { ImportParticipantsModal } from "./ImportParticipantsModal";
 import { ParticipantsTable } from "./ParticipantsTable";
 import { FilterLinks } from "./FilterLinks";
+import { parseSort } from "@/lib/sort";
+import { SERVICE_OPTIONS } from "@/lib/constants";
+import { PARTICIPANT_SORT_COLUMNS } from "./sortColumns";
 
 type Filter = "all" | "checked-in" | "not-checked-in";
 
@@ -15,10 +18,10 @@ export default async function ParticipantsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string; filter?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; sort?: string; dir?: string }>;
 }) {
   const event = await getEventOrNotFound((await params).id);
-  const { q = "", filter: filterParam } = await searchParams;
+  const { q = "", filter: filterParam, sort: sortParam, dir: dirParam } = await searchParams;
   const filter: Filter = filterParam === "checked-in" || filterParam === "not-checked-in" ? filterParam : "all";
 
   const conditions: (SQL | undefined)[] = [eq(participants.eventId, event.id)];
@@ -36,11 +39,31 @@ export default async function ParticipantsPage({
   if (filter === "checked-in") conditions.push(isNotNull(participants.checkedInAt));
   if (filter === "not-checked-in") conditions.push(isNull(participants.checkedInAt));
 
+  const { sort, dir } = parseSort(sortParam, dirParam, PARTICIPANT_SORT_COLUMNS, "lastName");
+  const column = participants[sort];
+  const direction = dir === "asc" ? sql`asc` : sql`desc`;
+  // Service sorts by time slot order (SERVICE_OPTIONS), with other named services after
+  const primary =
+    sort === "serviceAttended"
+      ? sql`coalesce(array_position(ARRAY[${sql.join(
+          SERVICE_OPTIONS.map((s) => sql`${s}`),
+          sql`, `
+        )}]::text[], ${column}), ${SERVICE_OPTIONS.length + 1})` // array_position is 1-based
+      : column;
+  // contactNumber stores '' for unknown, so treat it as blank too
+  const blank = sort === "contactNumber" ? sql`nullif(${column}, '')` : column;
+
   const rows = await db
     .select()
     .from(participants)
     .where(and(...conditions))
-    .orderBy(asc(participants.lastName), asc(participants.firstName));
+    .orderBy(
+      sql`${blank} is null`, // blanks always last, whichever direction
+      sql`${primary} ${direction}`,
+      asc(column),
+      asc(participants.lastName),
+      asc(participants.firstName)
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -66,7 +89,7 @@ export default async function ParticipantsPage({
         {(term || filter !== "all") && " matching"}
       </p>
 
-      <ParticipantsTable eventId={event.id} rows={rows} />
+      <ParticipantsTable eventId={event.id} rows={rows} sort={sort} dir={dir} />
     </div>
   );
 }

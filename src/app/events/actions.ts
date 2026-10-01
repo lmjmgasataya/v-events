@@ -23,7 +23,7 @@ function readEventInput(formData: FormData) {
   if (!name) return { error: "Event name is required." } as const;
   if (!startsAt) return { error: "Start date and time is required." } as const;
   if (endsAtRaw && !endsAt) return { error: "End date and time is invalid." } as const;
-  if (endsAt && endsAt < startsAt) return { error: "End time must be after the start time." } as const;
+  if (endsAt && endsAt <= startsAt) return { error: "End time must be after the start time." } as const;
 
   return {
     values: { name, description: description || null, venue: venue || null, startsAt, endsAt },

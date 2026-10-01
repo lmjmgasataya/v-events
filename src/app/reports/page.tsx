@@ -4,12 +4,51 @@ import { getSession } from "@/lib/auth";
 import { getEventsSummary } from "@/lib/reports";
 import { formatDate } from "@/lib/date";
 import { StatCard, percent } from "@/components/StatCard";
+import { SortableTh } from "@/components/SortableTh";
+import { parseSort } from "@/lib/sort";
 
-export default async function ReportsPage() {
+const SORT_COLUMNS = ["name", "startsAt", "registered", "publicRegistrations", "walkIns", "checkedIn", "rate"] as const;
+type SortColumn = (typeof SORT_COLUMNS)[number];
+
+const HEADERS: [SortColumn, string, "left" | "right"][] = [
+  ["name", "Event", "left"],
+  ["startsAt", "Date", "left"],
+  ["registered", "Registered", "right"],
+  ["publicRegistrations", "Public link", "right"],
+  ["walkIns", "Walk-ins", "right"],
+  ["checkedIn", "Checked in", "right"],
+  ["rate", "Rate", "right"],
+];
+
+type SummaryRow = Awaited<ReturnType<typeof getEventsSummary>>[number];
+
+function sortValue(row: SummaryRow, column: SortColumn): string | number {
+  if (column === "rate") return row.registered ? row.checkedIn / row.registered : 0;
+  if (column === "startsAt") return row.startsAt.getTime();
+  if (column === "name") return row.name.toLowerCase();
+  return row[column];
+}
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const rows = await getEventsSummary();
+  const { sort: sortParam, dir: dirParam } = await searchParams;
+  // Default: newest event first
+  const { sort, dir } = sortParam
+    ? parseSort(sortParam, dirParam, SORT_COLUMNS, "startsAt")
+    : { sort: "startsAt" as const, dir: "desc" as const };
+
+  const rows = (await getEventsSummary()).sort((a, b) => {
+    const av = sortValue(a, sort);
+    const bv = sortValue(b, sort);
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === "asc" ? cmp : -cmp;
+  });
   const totals = rows.reduce(
     (acc, r) => ({
       registered: acc.registered + r.registered,
@@ -42,13 +81,9 @@ export default async function ReportsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-4 py-3 font-medium">Event</th>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium text-right">Registered</th>
-              <th className="px-4 py-3 font-medium text-right">Public link</th>
-              <th className="px-4 py-3 font-medium text-right">Walk-ins</th>
-              <th className="px-4 py-3 font-medium text-right">Checked in</th>
-              <th className="px-4 py-3 font-medium text-right">Rate</th>
+              {HEADERS.map(([column, label, align]) => (
+                <SortableTh key={column} column={column} label={label} sort={sort} dir={dir} align={align} />
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

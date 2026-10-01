@@ -6,9 +6,33 @@ import type { Participant } from "@/db/schema";
 import { formatDate, formatDateTime } from "@/lib/date";
 import { SOURCE_LABELS } from "@/lib/constants";
 import { useToast } from "@/components/toast/ToastContext";
+import { SortableTh } from "@/components/SortableTh";
+import type { SortDir } from "@/lib/sort";
 import { deleteParticipant } from "./actions";
+import type { ParticipantSortColumn } from "./sortColumns";
 
-export function ParticipantsTable({ eventId, rows }: { eventId: number; rows: Participant[] }) {
+const HEADERS: [ParticipantSortColumn, string][] = [
+  ["lastName", "Last name"],
+  ["firstName", "First name"],
+  ["contactNumber", "Contact"],
+  ["serviceAttended", "Service"],
+  ["lifestage", "Lifestage"],
+  ["status", "Status"],
+  ["registeredAt", "Registered"],
+  ["checkedInAt", "Checked in"],
+];
+
+export function ParticipantsTable({
+  eventId,
+  rows,
+  sort,
+  dir,
+}: {
+  eventId: number;
+  rows: Participant[];
+  sort: ParticipantSortColumn;
+  dir: SortDir;
+}) {
   const [pending, startTransition] = useTransition();
   const { showToast } = useToast();
 
@@ -33,14 +57,9 @@ export function ParticipantsTable({ eventId, rows }: { eventId: number; rows: Pa
       <table className="w-full text-sm">
         <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
           <tr>
-            <th className="px-4 py-3 font-medium">Last name</th>
-            <th className="px-4 py-3 font-medium">First name</th>
-            <th className="px-4 py-3 font-medium">Contact</th>
-            <th className="px-4 py-3 font-medium">Service</th>
-            <th className="px-4 py-3 font-medium">Lifestage</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Registered</th>
-            <th className="px-4 py-3 font-medium">Checked in</th>
+            {HEADERS.map(([column, label]) => (
+              <SortableTh key={column} column={column} label={label} sort={sort} dir={dir} />
+            ))}
             <th className="px-4 py-3" />
           </tr>
         </thead>

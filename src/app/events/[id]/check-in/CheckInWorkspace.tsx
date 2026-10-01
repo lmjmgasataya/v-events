@@ -20,7 +20,6 @@ export interface CheckInRow {
   checkedInAt: string | null;
 }
 
-const MAX_RESULTS = 50;
 // Pull in check-ins made from other devices
 const REFRESH_INTERVAL_MS = 20_000;
 
@@ -51,18 +50,11 @@ export function CheckInWorkspace({ eventId, roster }: { eventId: number; roster:
 
   const checkedInCount = optimisticRoster.filter((r) => r.checkedInAt).length;
   const searching = query.trim() !== "";
+  // Whole roster is already in the page; searching just filters it in the browser
   const results = useMemo(() => {
     const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-    return tokens.length ? optimisticRoster.filter((r) => matches(r, tokens)) : [];
+    return tokens.length ? optimisticRoster.filter((r) => matches(r, tokens)) : optimisticRoster;
   }, [optimisticRoster, query]);
-  const recent = useMemo(
-    () =>
-      optimisticRoster
-        .filter((r) => r.checkedInAt)
-        .sort((a, b) => b.checkedInAt!.localeCompare(a.checkedInAt!))
-        .slice(0, 10),
-    [optimisticRoster]
-  );
 
   function handleCheckIn(row: CheckInRow) {
     startTransition(async () => {
@@ -89,7 +81,7 @@ export function CheckInWorkspace({ eventId, roster }: { eventId: number; roster:
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     // Enter checks in the only matching person — fast path for a busy door
-    if (e.key !== "Enter") return;
+    if (e.key !== "Enter" || !searching) return;
     const pendingMatches = results.filter((r) => !r.checkedInAt);
     if (results.length === 1 && pendingMatches.length === 1) {
       e.preventDefault();
@@ -129,33 +121,24 @@ export function CheckInWorkspace({ eventId, roster }: { eventId: number; roster:
         className={`${inputCls} text-base py-3`}
       />
 
-      {searching ? (
-        <section>
-          <p className="text-xs text-gray-500 mb-2">
-            {results.length === 0
-              ? "No match. Not registered? Add them as a walk-in."
-              : `${results.length} match${results.length === 1 ? "" : "es"}${results.length > MAX_RESULTS ? ` — showing first ${MAX_RESULTS}, keep typing to narrow` : ""}`}
-          </p>
+      <section>
+        <p className="text-xs text-gray-500 mb-2">
+          {total === 0
+            ? "No participants yet. Add them on the Participants tab, or add a walk-in."
+            : !searching
+              ? `${total} participant${total === 1 ? "" : "s"}`
+              : results.length === 0
+                ? "No match. Not registered? Add them as a walk-in."
+                : `${results.length} match${results.length === 1 ? "" : "es"}`}
+        </p>
+        {results.length > 0 && (
           <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {results.slice(0, MAX_RESULTS).map((row) => (
+            {results.map((row) => (
               <RosterItem key={row.id} row={row} pending={pending} onCheckIn={handleCheckIn} onUndo={handleUndo} />
             ))}
           </ul>
-        </section>
-      ) : (
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 mb-2">Recently checked in</h2>
-          {recent.length === 0 ? (
-            <p className="text-sm text-gray-400">No one yet. Search above to check someone in.</p>
-          ) : (
-            <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-              {recent.map((row) => (
-                <RosterItem key={row.id} row={row} pending={pending} onCheckIn={handleCheckIn} onUndo={handleUndo} />
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+        )}
+      </section>
 
       {walkInOpen && <WalkInModal eventId={eventId} onClose={() => setWalkInOpen(false)} />}
     </div>

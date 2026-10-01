@@ -16,6 +16,7 @@ import {
   validateParticipantInput,
 } from "@/lib/participants";
 import { DEFAULT_STATUS } from "@/lib/constants";
+import { normalizeService } from "@/lib/services";
 import { withToast } from "@/lib/toast";
 
 export type ParticipantFormState = { error?: string; success?: string } | undefined;
@@ -164,7 +165,7 @@ export async function importParticipantsCsv(eventId: number, csvText: string): P
       lastName,
       firstName,
       contactNumber,
-      serviceAttended: cell(cols, "serviceAttended") || null,
+      serviceAttended: normalizeService(cell(cols, "serviceAttended")),
       lifestage: cell(cols, "lifestage") || null,
       status: cell(cols, "status") || DEFAULT_STATUS,
       registeredAt,

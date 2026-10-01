@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Field, FormError, inputCls, secondaryBtnCls, primaryBtnCls } from "@/components/form";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -26,9 +26,29 @@ export function EventForm({
   cancelHref: string;
 }) {
   const [state, formAction] = useActionState(action, undefined);
+  const [clientError, setClientError] = useState<string>();
+
+  // Check in the browser first: React resets the form after a server action
+  // returns, which would wipe what the user typed.
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    const data = new FormData(e.currentTarget);
+    const startsAt = (data.get("startsAt") as string) ?? "";
+    const endsAt = (data.get("endsAt") as string) ?? "";
+    // datetime-local values ("YYYY-MM-DDTHH:mm") compare correctly as strings
+    if (startsAt && endsAt && endsAt <= startsAt) {
+      e.preventDefault();
+      setClientError("End time must be after the start time.");
+      return;
+    }
+    setClientError(undefined);
+  }
 
   return (
-    <form action={formAction} className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col gap-4 max-w-2xl">
+    <form
+      action={formAction}
+      onSubmit={handleSubmit}
+      className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col gap-4 max-w-2xl"
+    >
       <Field label="Event name" name="name" required defaultValue={defaultValues?.name} autoFocus />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Starts" name="startsAt" type="datetime-local" required defaultValue={defaultValues?.startsAt} />
@@ -49,7 +69,7 @@ export function EventForm({
         />
       </div>
 
-      <FormError message={state?.error} />
+      <FormError message={clientError ?? state?.error} />
 
       <div className="flex justify-end gap-2">
         <Link href={cancelHref} className={secondaryBtnCls}>
