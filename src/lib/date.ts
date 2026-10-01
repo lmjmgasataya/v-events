@@ -50,11 +50,6 @@ export function fromManilaDateTimeLocal(value: string): Date | null {
   return new Date(Date.UTC(y, m - 1, d, hh, mm) - MANILA_OFFSET_MS);
 }
 
-/** Hour of day (0–23) in Manila time. */
-export function manilaHour(date: Date): number {
-  return new Date(date.getTime() + MANILA_OFFSET_MS).getUTCHours();
-}
-
 /**
  * Parses the "Date of Registration" column from an imported CSV. Spreadsheets export
  * dates in many shapes, so this accepts (all read as Manila wall time):
@@ -88,7 +83,9 @@ export function parseRegistrationDate(raw: string): Date | null {
 
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return null;
-  // Date.parse reads zone-less strings as server-local time; re-anchor to Manila.
+  // A value that names its own zone ("…Z", "+08:00", "GMT+0800") is already an exact instant.
+  if (/(?:Z|[+-]\d{2}:?\d{2}|\b(?:GMT|UTC)\b.*)$/i.test(value)) return new Date(parsed);
+  // Otherwise Date.parse read it as server-local time; re-anchor that wall time to Manila.
   const local = new Date(parsed);
   return manilaWallTime(
     local.getFullYear(),
