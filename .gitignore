@@ -43,3 +43,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local seed script (contains real account passwords)
+/src/db/seed-users.ts
