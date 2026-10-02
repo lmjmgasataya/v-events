@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { events, participants } from "@/db/schema";
+import { normalizeFormConfig } from "@/lib/form-config";
 
 export async function getEventOrNotFound(idParam: string) {
   const id = Number(idParam);
@@ -10,6 +11,12 @@ export async function getEventOrNotFound(idParam: string) {
   const [event] = await db.select().from(events).where(eq(events.id, id)).limit(1);
   if (!event) notFound();
   return event;
+}
+
+/** The event's registration form, for server actions that only have the event id. */
+export async function getEventForm(eventId: number) {
+  const [event] = await db.select({ form: events.form }).from(events).where(eq(events.id, eventId)).limit(1);
+  return normalizeFormConfig(event?.form);
 }
 
 /** Registered / checked-in counts per event, keyed by event id. */

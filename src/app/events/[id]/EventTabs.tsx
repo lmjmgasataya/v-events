@@ -10,6 +10,7 @@ const ICONS = {
     "M17 20h5v-2a4 4 0 00-5.4-3.7M17 20H7m10 0v-2c0-.7-.1-1.3-.4-1.9M7 20H2v-2a4 4 0 015.4-3.7M7 20v-2c0-.7.1-1.3.4-1.9m0 0a5 5 0 019.2 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
   checkIn: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
   report: "M9 19V9m4 10V5m4 14v-7M5 19v-3",
+  form: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4",
   edit: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z",
 } as const;
 
@@ -21,6 +22,7 @@ export function EventTabs({ eventId }: { eventId: number }) {
     { href: `${base}/participants`, label: "Participants", icon: ICONS.participants },
     { href: `${base}/check-in`, label: "Check-in", icon: ICONS.checkIn },
     { href: `${base}/report`, label: "Report", icon: ICONS.report },
+    { href: `${base}/form`, label: "Form", icon: ICONS.form },
     { href: `${base}/edit`, label: "Edit", icon: ICONS.edit },
   ];
 

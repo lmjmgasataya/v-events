@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { participants } from "@/db/schema";
 import { getEventOrNotFound } from "@/lib/events";
+import { normalizeFormConfig } from "@/lib/form-config";
 import { EditParticipantForm } from "./EditParticipantForm";
 
 export default async function EditParticipantPage({
@@ -27,7 +28,7 @@ export default async function EditParticipantPage({
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
         Edit {participant.firstName} {participant.lastName}
       </h2>
-      <EditParticipantForm eventId={event.id} participant={participant} />
+      <EditParticipantForm eventId={event.id} participant={participant} form={normalizeFormConfig(event.form)} />
     </div>
   );
 }

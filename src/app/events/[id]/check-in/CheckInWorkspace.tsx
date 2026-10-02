@@ -9,6 +9,7 @@ import { ParticipantFields } from "@/components/ParticipantFields";
 import { FormError, inputCls, primaryBtnCls, secondaryBtnCls } from "@/components/form";
 import { SubmitButton } from "@/components/SubmitButton";
 import { formatTime } from "@/lib/date";
+import type { EventFormConfig } from "@/lib/form-config";
 import { addWalkIn, checkIn, undoCheckIn } from "./actions";
 
 export interface CheckInRow {
@@ -28,7 +29,15 @@ function matches(row: CheckInRow, tokens: string[]) {
   return tokens.every((t) => haystack.includes(t));
 }
 
-export function CheckInWorkspace({ eventId, roster }: { eventId: number; roster: CheckInRow[] }) {
+export function CheckInWorkspace({
+  eventId,
+  roster,
+  form,
+}: {
+  eventId: number;
+  roster: CheckInRow[];
+  form: EventFormConfig;
+}) {
   const [query, setQuery] = useState("");
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -140,7 +149,7 @@ export function CheckInWorkspace({ eventId, roster }: { eventId: number; roster:
         )}
       </section>
 
-      {walkInOpen && <WalkInModal eventId={eventId} onClose={() => setWalkInOpen(false)} />}
+      {walkInOpen && <WalkInModal eventId={eventId} form={form} onClose={() => setWalkInOpen(false)} />}
     </div>
   );
 }
@@ -186,7 +195,7 @@ function RosterItem({
   );
 }
 
-function WalkInModal({ eventId, onClose }: { eventId: number; onClose: () => void }) {
+function WalkInModal({ eventId, form, onClose }: { eventId: number; form: EventFormConfig; onClose: () => void }) {
   const [state, action] = useActionState(addWalkIn.bind(null, eventId), undefined);
   useToastOnResult(state?.success ? state : undefined);
 
@@ -198,7 +207,7 @@ function WalkInModal({ eventId, onClose }: { eventId: number; onClose: () => voi
     <Modal title="Add walk-in" onClose={onClose} wide>
       <p className="text-sm text-gray-500 mb-4">Adds the person to this event and checks them in right away.</p>
       <form action={action} className="flex flex-col gap-4">
-        <ParticipantFields />
+        <ParticipantFields form={form} />
         <FormError message={state?.error} />
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className={secondaryBtnCls}>

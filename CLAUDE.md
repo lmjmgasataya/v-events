@@ -44,8 +44,8 @@ This app **reuses v-1's Supabase database**. Every table this app owns is prefix
 
 ### Data model
 - `er_users` — staff accounts: `username`, `passwordHash` (bcryptjs), `name`, `role` (`admin` | `volunteer`)
-- `er_events` — `name`, `description`, `venue`, `startsAt`, `endsAt`, `publicSlug` (unique random token for the public link), `registrationOpen`
-- `er_participants` — one row per person **per event** (`eventId` FK, cascade delete): `lastName`, `firstName`, `contactNumber` (`''` when unknown, never null), `serviceAttended`, `lifestage`, `status` (default `Registered`, `Walk-in` for walk-ins), `registeredAt`, `source` (`manual` | `csv` | `public` | `walk_in`), `checkedInAt` / `checkedInById` (null = not checked in). Unique index `er_participants_event_person_uq` on `(eventId, lower(lastName), lower(firstName), contactNumber)` — the dedup rule for every add path.
+- `er_events` — `name`, `description`, `venue`, `startsAt`, `endsAt`, `publicSlug` (unique random token for the public link), `registrationOpen`, `form` (jsonb registration-form config, `null` = default form — always read via `normalizeFormConfig`)
+- `er_participants` — one row per person **per event** (`eventId` FK, cascade delete): `lastName`, `firstName`, `contactNumber` (`''` when unknown, never null), `serviceAttended`, `lifestage`, `status` (default `Registered`, `Walk-in` for walk-ins), `answers` (jsonb, custom-question answers keyed by question id; checkboxes → `string[]`), `registeredAt`, `source` (`manual` | `csv` | `public` | `walk_in`), `checkedInAt` / `checkedInById` (null = not checked in). Unique index `er_participants_event_person_uq` on `(eventId, lower(lastName), lower(firstName), contactNumber)` — the dedup rule for every add path.
 
 Check-in lives on the participant row (one check-in per participant per event), not a separate table.
 
@@ -56,7 +56,8 @@ Check-in lives on the participant row (one check-in per participant per event), 
   - `page.tsx` — overview: stats, `PublicLinkCard` (copy/share/QR, open/close registration, regenerate link), delete
   - `participants/` — list with `?q=` search and `?filter=checked-in|not-checked-in`; add (modal), edit (`[participantId]/edit`), remove, CSV import (`ImportParticipantsModal` → `importParticipantsCsv`)
   - `check-in/` — `CheckInWorkspace`: whole roster loaded once and filtered client-side for instant search, `useOptimistic` check-in/undo, Enter checks in a single match, walk-in modal, auto-`router.refresh()` every 20s to pick up other devices' check-ins
-  - `report/` — totals plus breakdowns by service / lifestage / status / source, check-ins by hour, registrations by date (queries in `src/lib/reports.ts`)
+  - `form/` — `FormBuilder`: Google-Forms-style registration form editor (toggle service/lifestage, add/reorder custom questions, preview) → `saveEventForm`
+  - `report/` — totals plus breakdowns by service / lifestage / status / source / each choice question, check-ins by hour, registrations by date (queries in `src/lib/reports.ts`)
   - `export/route.ts` — participants CSV download
 - `src/app/reports/` — all-events summary table; `export/route.ts` downloads it as CSV
 - `src/app/e/[slug]/` — **public** event page + self-registration (`registerForEvent`), `success/` confirmation
@@ -73,6 +74,8 @@ if (!session) redirect("/login");
 **Mutations use Server Actions**, not API routes. Route handlers exist only for CSV downloads and `api/health`.
 
 **Shared participant fields/validation** — `src/components/ParticipantFields.tsx` (inputs) and `src/lib/participants.ts` (`readParticipantInput` / `validateParticipantInput` / `toParticipantValues`) are used by the staff add/edit forms, walk-in, and the public form. When adding a participant field, change these once. Duplicate inserts are detected via `isUniqueViolation` (`src/lib/db-errors.ts`) on the unique index rather than a pre-check.
+
+**Configurable registration form** — `src/lib/form-config.ts` (client-safe) defines `EventFormConfig`: first/last name and contact number are always asked; `showServiceAttended` / `showLifestage` toggle those built-ins; `questions` are custom questions of type short answer, paragraph, multiple choice, checkboxes, dropdown, date, or time. Rendered by `QuestionField` (posts `q_<id>`) inside `ParticipantFields`, parsed by `readAnswers`/`validateAnswers`. `strict` (public form only) enforces required questions and that choices are listed options; staff forms skip both. Hidden built-ins are left untouched on edit, and editing merges `answers` so answers to removed questions survive. Export appends one column per question (titled by its label), and import matches columns by question title.
 
 **CSV import** (`src/lib/csv.ts` + `importParticipantsCsv`) — columns are matched by header name (case/punctuation-insensitive, with aliases), so column order doesn't matter; only Last Name and First Name are required. Accepts comma- or tab-delimited text and strips the Excel BOM. `Date of Registration` is parsed by `parseRegistrationDate` (`src/lib/date.ts`; ISO, `M/D/YYYY [h:mm AM]`, or anything `Date.parse` reads), as Manila time; blank → now. Rows are bulk-inserted in chunks with `onConflictDoNothing`, so existing participants are skipped and counted as duplicates. Imported contact numbers are normalized but not format-validated. The participants export writes the same seven columns first, so an export can be re-imported.
 

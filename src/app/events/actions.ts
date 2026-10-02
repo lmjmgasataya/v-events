@@ -9,6 +9,7 @@ import { getSession } from "@/lib/auth";
 import { fromManilaDateTimeLocal } from "@/lib/date";
 import { generatePublicSlug } from "@/lib/slug";
 import { withToast } from "@/lib/toast";
+import { normalizeFormConfig, validateFormConfig } from "@/lib/form-config";
 
 export type EventFormState = { error?: string } | undefined;
 
@@ -86,4 +87,20 @@ export async function regeneratePublicLink(id: number) {
 
   await db.update(events).set({ publicSlug: generatePublicSlug() }).where(eq(events.id, id));
   revalidatePath(`/events/${id}`, "layout");
+}
+
+export type SaveFormResult = { ok: true } | { ok: false; error: string };
+
+/** Saves the event's registration form from the Form tab builder. */
+export async function saveEventForm(id: number, rawConfig: unknown): Promise<SaveFormResult> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const config = normalizeFormConfig(rawConfig);
+  const error = validateFormConfig(config);
+  if (error) return { ok: false, error };
+
+  await db.update(events).set({ form: config }).where(eq(events.id, id));
+  revalidatePath(`/events/${id}`, "layout");
+  return { ok: true };
 }

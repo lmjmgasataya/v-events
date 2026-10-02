@@ -2,6 +2,7 @@ import { and, asc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from "drizz
 import { db } from "@/db";
 import { participants } from "@/db/schema";
 import { getEventOrNotFound } from "@/lib/events";
+import { normalizeFormConfig } from "@/lib/form-config";
 import { SearchBox } from "@/components/SearchBox";
 import { AddParticipantModal } from "./AddParticipantModal";
 import { ImportParticipantsModal } from "./ImportParticipantsModal";
@@ -21,6 +22,7 @@ export default async function ParticipantsPage({
   searchParams: Promise<{ q?: string; filter?: string; sort?: string; dir?: string }>;
 }) {
   const event = await getEventOrNotFound((await params).id);
+  const form = normalizeFormConfig(event.form);
   const { q = "", filter: filterParam, sort: sortParam, dir: dirParam } = await searchParams;
   const filter: Filter = filterParam === "checked-in" || filterParam === "not-checked-in" ? filterParam : "all";
 
@@ -79,8 +81,8 @@ export default async function ParticipantsPage({
           >
             Export CSV
           </a>
-          <ImportParticipantsModal eventId={event.id} />
-          <AddParticipantModal eventId={event.id} />
+          <ImportParticipantsModal eventId={event.id} questionLabels={form.questions.map((q) => q.label)} />
+          <AddParticipantModal eventId={event.id} form={form} />
         </div>
       </div>
 

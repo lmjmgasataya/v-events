@@ -2,6 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { participants } from "@/db/schema";
 import { getEventOrNotFound } from "@/lib/events";
+import { normalizeFormConfig } from "@/lib/form-config";
 import { CheckInWorkspace, type CheckInRow } from "./CheckInWorkspace";
 
 export default async function CheckInPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,5 +23,5 @@ export default async function CheckInPage({ params }: { params: Promise<{ id: st
 
   const roster: CheckInRow[] = rows.map((r) => ({ ...r, checkedInAt: r.checkedInAt?.toISOString() ?? null }));
 
-  return <CheckInWorkspace eventId={event.id} roster={roster} />;
+  return <CheckInWorkspace eventId={event.id} roster={roster} form={normalizeFormConfig(event.form)} />;
 }

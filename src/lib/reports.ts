@@ -1,6 +1,7 @@
 import { asc, count, desc, eq, sql, type AnyColumn } from "drizzle-orm";
 import { db } from "@/db";
 import { events, participants } from "@/db/schema";
+import { isChoiceType, type FormQuestion } from "@/lib/form-config";
 
 export interface BreakdownRow {
   label: string;
@@ -44,6 +45,43 @@ export async function getEventReport(eventId: number) {
   ]);
 
   return { byService, byLifestage, byStatus, bySource, checkInsByHour, registrationsByDay };
+}
+
+const NOT_SPECIFIED = "Not specified";
+
+/**
+ * Breakdown per choice question (multiple choice / checkboxes / dropdown), listed in
+ * option order. For checkboxes one person can count toward several options.
+ */
+export async function getQuestionBreakdowns(eventId: number, questions: FormQuestion[]) {
+  const choiceQuestions = questions.filter((q) => isChoiceType(q.type));
+  if (choiceQuestions.length === 0) return [];
+
+  const rows = await db
+    .select({ answers: participants.answers, checkedInAt: participants.checkedInAt })
+    .from(participants)
+    .where(eq(participants.eventId, eventId));
+
+  return choiceQuestions.map((question) => {
+    const tally = new Map<string, BreakdownRow>(
+      question.options.map((label) => [label, { label, registered: 0, checkedIn: 0 }])
+    );
+    for (const row of rows) {
+      const value = row.answers[question.id];
+      const labels = value === undefined || value.length === 0 ? [NOT_SPECIFIED] : Array.isArray(value) ? value : [value];
+      for (const label of labels) {
+        const entry = tally.get(label) ?? { label, registered: 0, checkedIn: 0 };
+        entry.registered++;
+        if (row.checkedInAt) entry.checkedIn++;
+        tally.set(label, entry);
+      }
+    }
+    // Options nobody picked stay listed (as 0), like a Google Forms summary; "Not specified" goes last
+    const breakdown = [...tally.values()].sort(
+      (a, b) => Number(a.label === NOT_SPECIFIED) - Number(b.label === NOT_SPECIFIED)
+    );
+    return { question, rows: rows.length === 0 ? [] : breakdown };
+  });
 }
 
 /** One row per event with registered / checked-in / walk-in totals, newest first. */

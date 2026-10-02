@@ -1,5 +1,6 @@
-import { pgTable, serial, text, boolean, timestamp, integer, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, uniqueIndex, index, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { Answers } from "../../lib/form-config";
 
 // Every table is prefixed `er_` because this app shares its database with v-1.
 // Enum-like columns are plain `text` on purpose: Postgres enums are database-wide
@@ -24,6 +25,9 @@ export const events = pgTable("er_events", {
   // Unguessable token used in the public link (/e/<slug>)
   publicSlug: text("public_slug").notNull().unique(),
   registrationOpen: boolean("registration_open").notNull().default(true),
+  // Registration form config (EventFormConfig); null = default form. Read it through
+  // normalizeFormConfig rather than trusting the stored shape.
+  form: jsonb("form"),
   createdById: integer("created_by_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -41,6 +45,8 @@ export const participants = pgTable(
     serviceAttended: text("service_attended"),
     lifestage: text("lifestage"),
     status: text("status").notNull().default("Registered"),
+    // Answers to the event's custom form questions, keyed by question id
+    answers: jsonb("answers").$type<Answers>().notNull().default({}),
     registeredAt: timestamp("registered_at", { withTimezone: true }).notNull().defaultNow(),
     source: text("source").notNull().default("manual"), // "manual" | "csv" | "public" | "walk_in"
     checkedInAt: timestamp("checked_in_at", { withTimezone: true }),

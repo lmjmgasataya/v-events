@@ -2,13 +2,15 @@
 
 import { db } from "@/db";
 import { participants } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
-import { mapParticipantHeaders, parseCsv } from "@/lib/csv";
+import { mapParticipantHeaders, mapQuestionHeaders, parseCsv } from "@/lib/csv";
 import { parseRegistrationDate } from "@/lib/date";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { getEventForm } from "@/lib/events";
+import { parseAnswerText, type Answers } from "@/lib/form-config";
 import {
   normalizeContactNumber,
   readParticipantInput,
@@ -36,8 +38,9 @@ export async function addParticipant(
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const input = readParticipantInput(formData);
-  const error = validateParticipantInput(input, { requireContact: false });
+  const form = await getEventForm(eventId);
+  const input = readParticipantInput(formData, form);
+  const error = validateParticipantInput(input, form, { strict: false });
   if (error) return { error };
 
   try {
@@ -60,14 +63,23 @@ export async function updateParticipant(
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const input = readParticipantInput(formData);
-  const error = validateParticipantInput(input, { requireContact: false });
+  const form = await getEventForm(eventId);
+  const input = readParticipantInput(formData, form);
+  const error = validateParticipantInput(input, form, { strict: false });
   if (error) return { error };
+
+  // Replace answers to the form's current questions (a cleared answer is removed);
+  // answers to questions since removed from the form are kept.
+  const currentIds = form.questions.map((q) => q.id);
+  const answers = sql`(${participants.answers} - ${sql`array[${sql.join(
+    currentIds.map((qid) => sql`${qid}`),
+    sql`, `
+  )}]::text[]`}) || ${JSON.stringify(input.answers)}::jsonb`;
 
   try {
     await db
       .update(participants)
-      .set(toParticipantValues(input))
+      .set({ ...toParticipantValues(input), answers })
       .where(and(eq(participants.id, participantId), eq(participants.eventId, eventId)));
   } catch (err) {
     if (isUniqueViolation(err)) return { error: DUPLICATE_MESSAGE };
@@ -106,7 +118,8 @@ const INSERT_CHUNK_SIZE = 500;
  * so re-importing an updated sheet is safe.
  *
  * Contact numbers are kept as-is (minus spaces/dashes) rather than strictly validated,
- * since imported sheets often carry legacy formats.
+ * since imported sheets often carry legacy formats. Columns titled like one of the
+ * event's custom form questions fill in its answer (checkboxes: "; "-separated).
  */
 export async function importParticipantsCsv(eventId: number, csvText: string): Promise<ImportSummary> {
   const session = await getSession();
@@ -123,6 +136,8 @@ export async function importParticipantsCsv(eventId: number, csvText: string): P
       errors: [{ row: 1, message: 'Header row must include "Last Name" and "First Name" columns.' }],
     };
   }
+
+  const questionColumns = mapQuestionHeaders(rows[0], (await getEventForm(eventId)).questions);
 
   const cell = (cols: string[], key: keyof typeof columns) => {
     const index = columns[key];
@@ -160,6 +175,12 @@ export async function importParticipantsCsv(eventId: number, csvText: string): P
     }
     seen.add(key);
 
+    const answers: Answers = {};
+    for (const { question, index } of questionColumns) {
+      const answer = parseAnswerText(question.type, cols[index] ?? "");
+      if (answer !== undefined) answers[question.id] = answer;
+    }
+
     values.push({
       eventId,
       lastName,
@@ -169,6 +190,7 @@ export async function importParticipantsCsv(eventId: number, csvText: string): P
       lifestage: cell(cols, "lifestage") || null,
       status: cell(cols, "status") || DEFAULT_STATUS,
       registeredAt,
+      answers,
       source: "csv",
     });
   });

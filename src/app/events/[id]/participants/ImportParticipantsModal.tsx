@@ -7,7 +7,7 @@ import { primaryBtnCls, secondaryBtnCls } from "@/components/form";
 import { PARTICIPANT_IMPORT_HEADERS, buildParticipantImportTemplate, downloadCsv } from "@/lib/csv";
 import { importParticipantsCsv, type ImportSummary } from "./actions";
 
-export function ImportParticipantsModal({ eventId }: { eventId: number }) {
+export function ImportParticipantsModal({ eventId, questionLabels }: { eventId: number; questionLabels: string[] }) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -45,7 +45,7 @@ export function ImportParticipantsModal({ eventId }: { eventId: number }) {
             <li>
               Use these column headers (any order):
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {PARTICIPANT_IMPORT_HEADERS.map((h) => (
+                {[...PARTICIPANT_IMPORT_HEADERS, ...questionLabels].map((h) => (
                   <code key={h} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">
                     {h}
                   </code>
@@ -53,10 +53,11 @@ export function ImportParticipantsModal({ eventId }: { eventId: number }) {
               </div>
             </li>
             <li>
-              Only Last Name and First Name are required.{" "}
+              Only Last Name and First Name are required.
+              {questionLabels.length > 0 && " Form question columns use the question title; separate multiple checkbox answers with “;”."}{" "}
               <button
                 type="button"
-                onClick={() => downloadCsv("participants-import-template.csv", buildParticipantImportTemplate())}
+                onClick={() => downloadCsv("participants-import-template.csv", buildParticipantImportTemplate(questionLabels))}
                 className="font-semibold text-er-navy hover:underline"
               >
                 Download template

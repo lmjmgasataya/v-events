@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { toManilaCsvDateTime } from "@/lib/date";
 import { SOURCE_LABELS } from "@/lib/constants";
+import { formatAnswer, normalizeFormConfig } from "@/lib/form-config";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -21,7 +22,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .where(eq(participants.eventId, event.id))
     .orderBy(asc(participants.lastName), asc(participants.firstName));
 
-  // First seven columns mirror the import format, so an export can be re-imported
+  const { questions } = normalizeFormConfig(event.form);
+
+  // First seven columns mirror the import format, and custom questions are matched by
+  // title on import, so an export can be re-imported
   const csv = toCsv([
     [
       "Last Name",
@@ -34,6 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       "Source",
       "Checked In",
       "Checked In At",
+      ...questions.map((q) => q.label),
     ],
     ...rows.map((p) => [
       p.lastName,
@@ -46,6 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       SOURCE_LABELS[p.source] ?? p.source,
       p.checkedInAt ? "Yes" : "No",
       p.checkedInAt ? toManilaCsvDateTime(p.checkedInAt) : "",
+      ...questions.map((q) => formatAnswer(p.answers[q.id])),
     ]),
   ]);
 

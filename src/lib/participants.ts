@@ -1,4 +1,5 @@
 import { DEFAULT_STATUS, MOBILE_NUMBER_HELP, MOBILE_NUMBER_REGEX, OTHER_SERVICE } from "@/lib/constants";
+import { readAnswers, validateAnswers, type Answers, type EventFormConfig } from "@/lib/form-config";
 import { normalizeService } from "@/lib/services";
 
 // Shared FormData parsing/validation for every way a participant gets added
@@ -8,25 +9,32 @@ export interface ParticipantInput {
   lastName: string;
   firstName: string;
   contactNumber: string;
-  serviceAttended: string;
-  lifestage: string;
+  // undefined = the event's form doesn't ask this, so leave the stored value alone
+  serviceAttended: string | undefined;
+  lifestage: string | undefined;
   status: string;
+  answers: Answers;
 }
 
 function str(formData: FormData, key: string): string {
   return ((formData.get(key) as string | null) ?? "").trim();
 }
 
-export function readParticipantInput(formData: FormData): ParticipantInput {
+export function readParticipantInput(formData: FormData, form: EventFormConfig): ParticipantInput {
   const serviceChoice = str(formData, "serviceAttended");
   return {
     lastName: str(formData, "lastName"),
     firstName: str(formData, "firstName"),
     contactNumber: normalizeContactNumber(str(formData, "contactNumber")),
     // "Others" in the dropdown → use the typed "please specify" text instead (see ServiceSelect)
-    serviceAttended: serviceChoice === OTHER_SERVICE ? str(formData, "serviceAttendedOther") : serviceChoice,
-    lifestage: str(formData, "lifestage"),
+    serviceAttended: !form.showServiceAttended
+      ? undefined
+      : serviceChoice === OTHER_SERVICE
+        ? str(formData, "serviceAttendedOther")
+        : serviceChoice,
+    lifestage: form.showLifestage ? str(formData, "lifestage") : undefined,
     status: str(formData, "status") || DEFAULT_STATUS,
+    answers: readAnswers(formData, form.questions),
   };
 }
 
@@ -35,25 +43,33 @@ export function normalizeContactNumber(raw: string): string {
   return raw.replace(/[\s\-().]/g, "");
 }
 
+/** `strict` is for the public form: contact number and required questions must be filled in. */
 export function validateParticipantInput(
   input: ParticipantInput,
-  { requireContact }: { requireContact: boolean }
+  form: EventFormConfig,
+  { strict }: { strict: boolean }
 ): string | null {
   if (!input.lastName) return "Last name is required.";
   if (!input.firstName) return "First name is required.";
-  if (requireContact && !input.contactNumber) return "Contact number is required.";
+  if (strict && !input.contactNumber) return "Contact number is required.";
   if (input.contactNumber && !MOBILE_NUMBER_REGEX.test(input.contactNumber)) return MOBILE_NUMBER_HELP;
-  return null;
+  return validateAnswers(input.answers, form.questions, { strict });
 }
 
+/**
+ * Column values for insert/update. Fields the form doesn't ask are omitted (so an edit
+ * keeps them). `answers` holds only this form's questions — on update, merge it into the
+ * stored answers (see updateParticipant) so answers to removed questions aren't lost.
+ */
 export function toParticipantValues(input: ParticipantInput) {
   return {
     lastName: input.lastName,
     firstName: input.firstName,
     contactNumber: input.contactNumber,
-    serviceAttended: normalizeService(input.serviceAttended),
-    lifestage: input.lifestage || null,
+    ...(input.serviceAttended !== undefined && { serviceAttended: normalizeService(input.serviceAttended) }),
+    ...(input.lifestage !== undefined && { lifestage: input.lifestage || null }),
     status: input.status || DEFAULT_STATUS,
+    answers: input.answers,
   };
 }
 

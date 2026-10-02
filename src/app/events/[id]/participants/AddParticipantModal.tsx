@@ -6,9 +6,10 @@ import { ParticipantFields } from "@/components/ParticipantFields";
 import { FormError, primaryBtnCls, secondaryBtnCls } from "@/components/form";
 import { SubmitButton } from "@/components/SubmitButton";
 import { useToastOnResult } from "@/components/toast/useToastOnResult";
+import type { EventFormConfig } from "@/lib/form-config";
 import { addParticipant } from "./actions";
 
-export function AddParticipantModal({ eventId }: { eventId: number }) {
+export function AddParticipantModal({ eventId, form }: { eventId: number; form: EventFormConfig }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -16,12 +17,12 @@ export function AddParticipantModal({ eventId }: { eventId: number }) {
       <button type="button" onClick={() => setOpen(true)} className={primaryBtnCls}>
         Add participant
       </button>
-      {open && <AddParticipantForm eventId={eventId} onClose={() => setOpen(false)} />}
+      {open && <AddParticipantForm eventId={eventId} form={form} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function AddParticipantForm({ eventId, onClose }: { eventId: number; onClose: () => void }) {
+function AddParticipantForm({ eventId, form, onClose }: { eventId: number; form: EventFormConfig; onClose: () => void }) {
   const [state, action] = useActionState(addParticipant.bind(null, eventId), undefined);
   const formRef = useRef<HTMLFormElement>(null);
   useToastOnResult(state?.success ? state : undefined);
@@ -37,7 +38,7 @@ function AddParticipantForm({ eventId, onClose }: { eventId: number; onClose: ()
   return (
     <Modal title="Add participant" onClose={onClose} wide>
       <form ref={formRef} action={action} className="flex flex-col gap-4">
-        <ParticipantFields showStatus />
+        <ParticipantFields form={form} showStatus />
         <FormError message={state?.error} />
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className={secondaryBtnCls}>

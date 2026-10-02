@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { events } from "@/db/schema";
 import { formatDateTime } from "@/lib/date";
+import { normalizeFormConfig } from "@/lib/form-config";
 import { PublicRegisterForm } from "./PublicRegisterForm";
 
 async function getEventBySlug(slug: string) {
@@ -37,7 +38,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
       {event.registrationOpen ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Register</h2>
-          <PublicRegisterForm slug={slug} />
+          <PublicRegisterForm slug={slug} form={normalizeFormConfig(event.form)} />
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">

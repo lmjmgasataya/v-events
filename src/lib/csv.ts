@@ -54,6 +54,25 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().replace(/[^a-z]/g, "");
 }
 
+/**
+ * Maps the event's custom form questions to header indexes by question title
+ * (case/punctuation-insensitive). Built-in columns win if a title collides with one.
+ */
+export function mapQuestionHeaders<Q extends { id: string; label: string }>(
+  headerRow: string[],
+  questions: Q[]
+): { question: Q; index: number }[] {
+  const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const byKey = new Map(questions.map((q) => [key(q.label), q]));
+  const mapped = new Map<string, { question: Q; index: number }>();
+  headerRow.forEach((header, index) => {
+    if (HEADER_ALIASES[normalizeHeader(header)]) return;
+    const question = byKey.get(key(header));
+    if (question && !mapped.has(question.id)) mapped.set(question.id, { question, index });
+  });
+  return [...mapped.values()];
+}
+
 /** Maps each known column to its index in the header row; unknown headers are ignored. */
 export function mapParticipantHeaders(headerRow: string[]): Partial<Record<ParticipantColumn, number>> {
   const map: Partial<Record<ParticipantColumn, number>> = {};
@@ -75,8 +94,11 @@ export function toCsv(rows: (string | number | null | undefined)[][]): string {
   return rows.map((row) => row.map((v) => escapeCsvField(v == null ? "" : String(v))).join(",")).join("\r\n");
 }
 
-export function buildParticipantImportTemplate(): string {
-  return toCsv([[...PARTICIPANT_IMPORT_HEADERS], TEMPLATE_EXAMPLE_ROW]);
+export function buildParticipantImportTemplate(questionLabels: string[] = []): string {
+  return toCsv([
+    [...PARTICIPANT_IMPORT_HEADERS, ...questionLabels],
+    [...TEMPLATE_EXAMPLE_ROW, ...questionLabels.map(() => "")],
+  ]);
 }
 
 /** Excel copy-pastes and "Text (Tab delimited)" saves use tabs; sniff the header line. */

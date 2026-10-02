@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { formatTime } from "@/lib/date";
+import { getEventForm } from "@/lib/events";
 import { readParticipantInput, toParticipantValues, validateParticipantInput } from "@/lib/participants";
 
 export type CheckInResult = { ok: true; checkedInAt: string } | { ok: false; error: string };
@@ -58,8 +59,9 @@ export async function addWalkIn(eventId: number, _: WalkInState, formData: FormD
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const input = readParticipantInput(formData);
-  const error = validateParticipantInput(input, { requireContact: false });
+  const form = await getEventForm(eventId);
+  const input = readParticipantInput(formData, form);
+  const error = validateParticipantInput(input, form, { strict: false });
   if (error) return { error };
 
   const now = new Date();

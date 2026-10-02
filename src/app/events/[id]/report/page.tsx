@@ -1,5 +1,6 @@
 import { getEventCounts, getEventOrNotFound } from "@/lib/events";
-import { getEventReport } from "@/lib/reports";
+import { getEventReport, getQuestionBreakdowns, type BreakdownRow } from "@/lib/reports";
+import { normalizeFormConfig } from "@/lib/form-config";
 import { SOURCE_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/date";
 import { StatCard, percent } from "@/components/StatCard";
@@ -12,9 +13,18 @@ function hourLabel(hour: number) {
   return `${h} ${suffix}`;
 }
 
+function hasData(rows: BreakdownRow[]) {
+  return rows.some((r) => r.label !== "Not specified");
+}
+
 export default async function EventReportPage({ params }: { params: Promise<{ id: string }> }) {
   const event = await getEventOrNotFound((await params).id);
-  const [countsMap, report] = await Promise.all([getEventCounts(event.id), getEventReport(event.id)]);
+  const form = normalizeFormConfig(event.form);
+  const [countsMap, report, questionBreakdowns] = await Promise.all([
+    getEventCounts(event.id),
+    getEventReport(event.id),
+    getQuestionBreakdowns(event.id, form.questions),
+  ]);
   const counts = countsMap.get(event.id) ?? { registered: 0, checkedIn: 0 };
   const walkIns = report.bySource.find((r) => r.label === "walk_in")?.registered ?? 0;
   const maxHour = Math.max(1, ...report.checkInsByHour.map((r) => r.n));
@@ -40,10 +50,16 @@ export default async function EventReportPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <BreakdownTable title="By service attended" rows={report.byService} />
-        <BreakdownTable title="By lifestage" rows={report.byLifestage} />
+        {/* Hidden when the form doesn't ask it, unless earlier registrations have data */}
+        {(form.showServiceAttended || hasData(report.byService)) && (
+          <BreakdownTable title="By service attended" rows={report.byService} />
+        )}
+        {(form.showLifestage || hasData(report.byLifestage)) && <BreakdownTable title="By lifestage" rows={report.byLifestage} />}
         <BreakdownTable title="By status" rows={report.byStatus} />
         <BreakdownTable title="By registration source" rows={report.bySource} labelFor={(l) => SOURCE_LABELS[l] ?? l} />
+        {questionBreakdowns.map(({ question, rows }) => (
+          <BreakdownTable key={question.id} title={question.label} rows={rows} />
+        ))}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
