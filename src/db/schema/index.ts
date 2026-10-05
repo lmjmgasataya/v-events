@@ -41,6 +41,8 @@ export const participants = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     lastName: text("last_name").notNull(),
     firstName: text("first_name").notNull(),
+    // Printed on the name tag instead of the first name when set
+    nickname: text("nickname").notNull().default(""),
     contactNumber: text("contact_number").notNull().default(""),
     serviceAttended: text("service_attended"),
     lifestage: text("lifestage"),

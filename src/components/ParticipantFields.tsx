@@ -26,6 +26,16 @@ export function ParticipantFields({
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="First name" name="firstName" required defaultValue={defaultValues?.firstName} autoComplete="given-name" />
       <Field label="Last name" name="lastName" required defaultValue={defaultValues?.lastName} autoComplete="family-name" />
+      {form.showNickname && (
+        <Field
+          label="Nickname"
+          name="nickname"
+          maxLength={40}
+          placeholder="Name on the name tag"
+          defaultValue={defaultValues?.nickname}
+          autoComplete="nickname"
+        />
+      )}
       <Field
         label="Contact number"
         name="contactNumber"

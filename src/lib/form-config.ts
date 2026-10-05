@@ -2,8 +2,8 @@
 // server-only imports, safe to use from Client Components.
 //
 // First name, last name and contact number are always asked (they're the dedup key
-// and what check-in searches on). Service attended and lifestage can be switched off
-// per event, and any number of custom questions can be added after them.
+// and what check-in searches on). Nickname (printed on the name tag), service attended
+// and lifestage can be switched off per event, and any number of custom questions can be added after them.
 // Answers live in er_participants.answers, keyed by question id.
 
 export const QUESTION_TYPES = [
@@ -45,6 +45,7 @@ export interface FormQuestion {
 }
 
 export interface EventFormConfig {
+  showNickname: boolean;
   showServiceAttended: boolean;
   showLifestage: boolean;
   questions: FormQuestion[];
@@ -55,6 +56,7 @@ export type AnswerValue = string | string[];
 export type Answers = Record<string, AnswerValue>;
 
 export const DEFAULT_FORM_CONFIG: EventFormConfig = {
+  showNickname: true,
   showServiceAttended: true,
   showLifestage: true,
   questions: [],
@@ -121,6 +123,7 @@ export function normalizeFormConfig(raw: unknown): EventFormConfig {
   }
 
   return {
+    showNickname: obj.showNickname !== false,
     showServiceAttended: obj.showServiceAttended !== false,
     showLifestage: obj.showLifestage !== false,
     questions,

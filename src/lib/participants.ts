@@ -10,11 +10,14 @@ export interface ParticipantInput {
   firstName: string;
   contactNumber: string;
   // undefined = the event's form doesn't ask this, so leave the stored value alone
+  nickname: string | undefined;
   serviceAttended: string | undefined;
   lifestage: string | undefined;
   status: string;
   answers: Answers;
 }
+
+const MAX_NICKNAME_LENGTH = 40;
 
 function str(formData: FormData, key: string): string {
   return ((formData.get(key) as string | null) ?? "").trim();
@@ -26,6 +29,7 @@ export function readParticipantInput(formData: FormData, form: EventFormConfig):
     lastName: str(formData, "lastName"),
     firstName: str(formData, "firstName"),
     contactNumber: normalizeContactNumber(str(formData, "contactNumber")),
+    nickname: form.showNickname ? str(formData, "nickname").slice(0, MAX_NICKNAME_LENGTH) : undefined,
     // "Others" in the dropdown → use the typed "please specify" text instead (see ServiceSelect)
     serviceAttended: !form.showServiceAttended
       ? undefined
@@ -66,11 +70,24 @@ export function toParticipantValues(input: ParticipantInput) {
     lastName: input.lastName,
     firstName: input.firstName,
     contactNumber: input.contactNumber,
+    ...(input.nickname !== undefined && { nickname: input.nickname }),
     ...(input.serviceAttended !== undefined && { serviceAttended: normalizeService(input.serviceAttended) }),
     ...(input.lifestage !== undefined && { lifestage: input.lifestage || null }),
     status: input.status || DEFAULT_STATUS,
     answers: input.answers,
   };
+}
+
+/**
+ * The big name on the name tag: nickname when given, otherwise the first word of the
+ * first name ("Maria Angelica" → "Maria"). When that first word is an abbreviation or
+ * too short to stand alone ("Ma. Anna", "Ma Cristina", "Jo Anne"), the full first name is used.
+ */
+export function nametagName(p: { firstName: string; nickname?: string | null }) {
+  const nickname = p.nickname?.trim();
+  if (nickname) return nickname;
+  const words = p.firstName.trim().split(/\s+/);
+  return words[0].endsWith(".") || words[0].length <= 2 ? words.join(" ") : words[0];
 }
 
 export function fullName(p: { firstName: string; lastName: string }) {

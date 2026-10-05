@@ -9,7 +9,7 @@ import { getSession } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { formatTime } from "@/lib/date";
 import { getEventForm } from "@/lib/events";
-import { readParticipantInput, toParticipantValues, validateParticipantInput } from "@/lib/participants";
+import { nametagName, readParticipantInput, toParticipantValues, validateParticipantInput } from "@/lib/participants";
 
 export type CheckInResult = { ok: true; checkedInAt: string } | { ok: false; error: string };
 
@@ -52,7 +52,7 @@ export async function undoCheckIn(eventId: number, participantId: number) {
   revalidatePath(`/events/${eventId}`, "layout");
 }
 
-export type WalkInState = { error?: string; success?: string } | undefined;
+export type WalkInState = { error?: string; success?: string; nametag?: string } | undefined;
 
 /** Adds someone who wasn't registered and checks them in immediately. */
 export async function addWalkIn(eventId: number, _: WalkInState, formData: FormData): Promise<WalkInState> {
@@ -84,5 +84,8 @@ export async function addWalkIn(eventId: number, _: WalkInState, formData: FormD
 
   revalidatePath(`/events/${eventId}`, "layout");
   revalidatePath("/");
-  return { success: `${input.firstName} ${input.lastName} added and checked in.` };
+  return {
+    success: `${input.firstName} ${input.lastName} added and checked in.`,
+    nametag: nametagName({ firstName: input.firstName, nickname: input.nickname }),
+  };
 }

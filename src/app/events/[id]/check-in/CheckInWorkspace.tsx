@@ -10,12 +10,16 @@ import { FormError, inputCls, primaryBtnCls, secondaryBtnCls } from "@/component
 import { SubmitButton } from "@/components/SubmitButton";
 import { formatTime } from "@/lib/date";
 import type { EventFormConfig } from "@/lib/form-config";
+import { printNameTag } from "@/lib/nametag";
+import { nametagName } from "@/lib/participants";
 import { addWalkIn, checkIn, undoCheckIn } from "./actions";
+import { NameTagPanel, useAutoPrint, useLabelSize } from "./NameTagPanel";
 
 export interface CheckInRow {
   id: number;
   firstName: string;
   lastName: string;
+  nickname: string;
   contactNumber: string;
   serviceAttended: string | null;
   checkedInAt: string | null;
@@ -25,16 +29,18 @@ export interface CheckInRow {
 const REFRESH_INTERVAL_MS = 20_000;
 
 function matches(row: CheckInRow, tokens: string[]) {
-  const haystack = `${row.firstName} ${row.lastName} ${row.contactNumber}`.toLowerCase();
+  const haystack = `${row.firstName} ${row.nickname} ${row.lastName} ${row.contactNumber}`.toLowerCase();
   return tokens.every((t) => haystack.includes(t));
 }
 
 export function CheckInWorkspace({
   eventId,
+  eventName,
   roster,
   form,
 }: {
   eventId: number;
+  eventName: string;
   roster: CheckInRow[];
   form: EventFormConfig;
 }) {
@@ -49,6 +55,14 @@ export function CheckInWorkspace({
   const { showToast } = useToast();
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  const [autoPrint, setAutoPrint] = useAutoPrint();
+  const [labelSize, setLabelSize] = useLabelSize();
+  const [lastTagName, setLastTagName] = useState<string | null>(null);
+
+  function printTag(name: string) {
+    setLastTagName(name);
+    printNameTag({ eventName, name, size: labelSize });
+  }
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -71,6 +85,8 @@ export function CheckInWorkspace({
       const result = await checkIn(eventId, row.id);
       if (result.ok) {
         showToast("success", `${row.firstName} ${row.lastName} checked in.`);
+        if (autoPrint) printTag(nametagName(row));
+        else setLastTagName(nametagName(row));
         setQuery("");
         searchRef.current?.focus();
       } else {
@@ -119,6 +135,15 @@ export function CheckInWorkspace({
         </button>
       </div>
 
+      <NameTagPanel
+        eventName={eventName}
+        autoPrint={autoPrint}
+        onAutoPrintChange={setAutoPrint}
+        size={labelSize}
+        onSizeChange={setLabelSize}
+        lastName={lastTagName}
+      />
+
       <input
         ref={searchRef}
         type="search"
@@ -143,13 +168,27 @@ export function CheckInWorkspace({
         {results.length > 0 && (
           <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
             {results.map((row) => (
-              <RosterItem key={row.id} row={row} pending={pending} onCheckIn={handleCheckIn} onUndo={handleUndo} />
+              <RosterItem
+                key={row.id}
+                row={row}
+                pending={pending}
+                onCheckIn={handleCheckIn}
+                onUndo={handleUndo}
+                onPrint={(r) => printTag(nametagName(r))}
+              />
             ))}
           </ul>
         )}
       </section>
 
-      {walkInOpen && <WalkInModal eventId={eventId} form={form} onClose={() => setWalkInOpen(false)} />}
+      {walkInOpen && (
+        <WalkInModal
+          eventId={eventId}
+          form={form}
+          onClose={() => setWalkInOpen(false)}
+          onAdded={(name) => (autoPrint ? printTag(name) : setLastTagName(name))}
+        />
+      )}
     </div>
   );
 }
@@ -159,17 +198,20 @@ function RosterItem({
   pending,
   onCheckIn,
   onUndo,
+  onPrint,
 }: {
   row: CheckInRow;
   pending: boolean;
   onCheckIn: (row: CheckInRow) => void;
   onUndo: (row: CheckInRow) => void;
+  onPrint: (row: CheckInRow) => void;
 }) {
   return (
     <li className="flex items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
         <p className="font-medium text-gray-900 truncate">
           {row.lastName}, {row.firstName}
+          {row.nickname && <span className="font-normal text-gray-400"> ({row.nickname})</span>}
         </p>
         <p className="text-xs text-gray-500 truncate">
           {[row.contactNumber, row.serviceAttended].filter(Boolean).join(" · ") || "—"}
@@ -178,6 +220,27 @@ function RosterItem({
       {row.checkedInAt ? (
         <div className="flex items-center gap-3 shrink-0">
           <span className="text-sm font-medium text-er-green">✓ {formatTime(row.checkedInAt)}</span>
+          <button
+            type="button"
+            onClick={() => onPrint(row)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-er-navy/30 bg-white px-3 py-1.5 text-xs font-semibold text-er-navy transition hover:bg-er-navy hover:text-white"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <path d="M6 9V2h12v7" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Print tag
+          </button>
           <button type="button" onClick={() => onUndo(row)} disabled={pending} className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50">
             Undo
           </button>
@@ -195,13 +258,30 @@ function RosterItem({
   );
 }
 
-function WalkInModal({ eventId, form, onClose }: { eventId: number; form: EventFormConfig; onClose: () => void }) {
+function WalkInModal({
+  eventId,
+  form,
+  onClose,
+  onAdded,
+}: {
+  eventId: number;
+  form: EventFormConfig;
+  onClose: () => void;
+  onAdded: (nametag: string) => void;
+}) {
   const [state, action] = useActionState(addWalkIn.bind(null, eventId), undefined);
   useToastOnResult(state?.success ? state : undefined);
+  // Latest callbacks without re-running the effect below when the parent re-renders
+  const callbacks = useRef({ onClose, onAdded });
+  useEffect(() => {
+    callbacks.current = { onClose, onAdded };
+  });
 
   useEffect(() => {
-    if (state?.success) onClose();
-  }, [state, onClose]);
+    if (!state?.success) return;
+    if (state.nametag) callbacks.current.onAdded(state.nametag);
+    callbacks.current.onClose();
+  }, [state]);
 
   return (
     <Modal title="Add walk-in" onClose={onClose} wide>

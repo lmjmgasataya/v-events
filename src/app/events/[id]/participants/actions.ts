@@ -185,6 +185,7 @@ export async function importParticipantsCsv(eventId: number, csvText: string): P
       eventId,
       lastName,
       firstName,
+      nickname: cell(cols, "nickname").slice(0, 40),
       contactNumber,
       serviceAttended: normalizeService(cell(cols, "serviceAttended")),
       lifestage: cell(cols, "lifestage") || null,

@@ -15,6 +15,13 @@
       "when": 1790939160927,
       "tag": "0001_event_forms",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791197048440,
+      "tag": "0002_participant_nickname",
+      "breakpoints": true
     }
   ]
 }

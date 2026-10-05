@@ -8,6 +8,7 @@ export const PARTICIPANT_IMPORT_HEADERS = [
   "Lifestage",
   "Status(Registered)",
   "Date of Registration",
+  "Nickname",
 ] as const;
 
 const TEMPLATE_EXAMPLE_ROW = [
@@ -18,6 +19,7 @@ const TEMPLATE_EXAMPLE_ROW = [
   "Single",
   "Registered",
   "2026-09-15",
+  "Jun",
 ];
 
 export type ParticipantColumn =
@@ -27,7 +29,8 @@ export type ParticipantColumn =
   | "serviceAttended"
   | "lifestage"
   | "status"
-  | "registeredAt";
+  | "registeredAt"
+  | "nickname";
 
 // Headers are matched after lowercasing and stripping everything but letters, so
 // "Last Name", "last_name", "LASTNAME" and "Status(Registered)" all resolve.
@@ -48,6 +51,8 @@ const HEADER_ALIASES: Record<string, ParticipantColumn> = {
   dateofregistration: "registeredAt",
   registrationdate: "registeredAt",
   dateregistered: "registeredAt",
+  nickname: "nickname",
+  preferredname: "nickname",
 };
 
 function normalizeHeader(header: string): string {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ParticipantFields } from "@/components/ParticipantFields";
 import { FormError, inputCls, primaryBtnCls, secondaryBtnCls } from "@/components/form";
+import { Toggle } from "@/components/Toggle";
 import { useToast } from "@/components/toast/ToastContext";
 import {
   MAX_OPTIONS,
@@ -169,6 +170,16 @@ export function FormBuilder({
                   <span className="text-xs text-gray-400">Always on</span>
                 </li>
               ))}
+              <li className="flex items-center justify-between py-2">
+                <span className="text-gray-800">
+                  Nickname <span className="text-xs text-gray-400">· printed on the name tag</span>
+                </span>
+                <Toggle
+                  checked={config.showNickname}
+                  onChange={(v) => setConfig((c) => ({ ...c, showNickname: v }))}
+                  label="Ask nickname"
+                />
+              </li>
               <li className="flex items-center justify-between py-2">
                 <span className="text-gray-800">Service attended</span>
                 <Toggle
@@ -439,21 +450,6 @@ function IconButton({
       <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
         <path d={path} />
       </svg>
-    </button>
-  );
-}
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition ${checked ? "bg-er-navy" : "bg-gray-300"}`}
-    >
-      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${checked ? "translate-x-4" : "translate-x-0.5"}`} />
     </button>
   );
 }

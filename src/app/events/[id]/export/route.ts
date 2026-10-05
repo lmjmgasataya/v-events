@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { questions } = normalizeFormConfig(event.form);
 
-  // First seven columns mirror the import format, and custom questions are matched by
+  // First eight columns mirror the import format, and custom questions are matched by
   // title on import, so an export can be re-imported
   const csv = toCsv([
     [
@@ -35,6 +35,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       "Lifestage",
       "Status(Registered)",
       "Date of Registration",
+      "Nickname",
       "Source",
       "Checked In",
       "Checked In At",
@@ -48,6 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       p.lifestage,
       p.status,
       toManilaCsvDateTime(p.registeredAt),
+      p.nickname,
       SOURCE_LABELS[p.source] ?? p.source,
       p.checkedInAt ? "Yes" : "No",
       p.checkedInAt ? toManilaCsvDateTime(p.checkedInAt) : "",

@@ -13,6 +13,7 @@ export default async function CheckInPage({ params }: { params: Promise<{ id: st
       id: participants.id,
       firstName: participants.firstName,
       lastName: participants.lastName,
+      nickname: participants.nickname,
       contactNumber: participants.contactNumber,
       serviceAttended: participants.serviceAttended,
       checkedInAt: participants.checkedInAt,
@@ -23,5 +24,7 @@ export default async function CheckInPage({ params }: { params: Promise<{ id: st
 
   const roster: CheckInRow[] = rows.map((r) => ({ ...r, checkedInAt: r.checkedInAt?.toISOString() ?? null }));
 
-  return <CheckInWorkspace eventId={event.id} roster={roster} form={normalizeFormConfig(event.form)} />;
+  return (
+    <CheckInWorkspace eventId={event.id} eventName={event.name} roster={roster} form={normalizeFormConfig(event.form)} />
+  );
 }

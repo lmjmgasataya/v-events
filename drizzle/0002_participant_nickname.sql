@@ -1,0 +1,1 @@
+ALTER TABLE "er_participants" ADD COLUMN "nickname" text DEFAULT '' NOT NULL;

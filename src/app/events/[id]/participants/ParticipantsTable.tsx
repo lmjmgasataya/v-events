@@ -67,7 +67,10 @@ export function ParticipantsTable({
           {rows.map((p) => (
             <tr key={p.id} className="hover:bg-gray-50/60">
               <td className="px-4 py-2.5 font-medium text-gray-900">{p.lastName}</td>
-              <td className="px-4 py-2.5 text-gray-900">{p.firstName}</td>
+              <td className="px-4 py-2.5 text-gray-900">
+                {p.firstName}
+                {p.nickname && <span className="text-gray-400"> ({p.nickname})</span>}
+              </td>
               <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{p.contactNumber || "—"}</td>
               <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{p.serviceAttended ?? "—"}</td>
               <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{p.lifestage ?? "—"}</td>
