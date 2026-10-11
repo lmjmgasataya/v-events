@@ -30,7 +30,8 @@ export type ParticipantColumn =
   | "lifestage"
   | "status"
   | "registeredAt"
-  | "nickname";
+  | "nickname"
+  | "fullName"; // split into first/last name when there are no separate name columns
 
 // Headers are matched after lowercasing and stripping everything but letters, so
 // "Last Name", "last_name", "LASTNAME" and "Status(Registered)" all resolve.
@@ -53,6 +54,23 @@ const HEADER_ALIASES: Record<string, ParticipantColumn> = {
   dateregistered: "registeredAt",
   nickname: "nickname",
   preferredname: "nickname",
+  name: "fullName",
+  fullname: "fullName",
+  completename: "fullName",
+  participant: "fullName",
+  participantname: "fullName",
+};
+
+export const PARTICIPANT_COLUMN_LABELS: Record<ParticipantColumn, string> = {
+  lastName: "Last name",
+  firstName: "First name",
+  fullName: "Full name (split into first + last)",
+  nickname: "Nickname",
+  contactNumber: "Contact number",
+  serviceAttended: "Service attended",
+  lifestage: "Lifestage",
+  status: "Status",
+  registeredAt: "Date of registration",
 };
 
 function normalizeHeader(header: string): string {
@@ -88,6 +106,83 @@ export function mapParticipantHeaders(headerRow: string[]): Partial<Record<Parti
   return map;
 }
 
+/**
+ * What each file column is imported as: a participant column, `q:<questionId>` for a
+ * form question, or null to ignore it. Chosen on the import preview (auto-filled from
+ * the header row by autoMapColumns) and sent with the rows to the import action.
+ */
+export type ImportField = ParticipantColumn | `q:${string}`;
+
+export interface ImportMapping {
+  /** Index of the header row in the file (rows above it are skipped), or null when every row is data. */
+  headerRow: number | null;
+  columns: (ImportField | null)[];
+}
+
+const HEADER_SCAN_ROWS = 10;
+
+/** Data rows per import (not counting the header and anything above it). */
+export const MAX_IMPORT_ROWS = 5000;
+
+function nameColumnsFound(map: Partial<Record<ParticipantColumn, number>>) {
+  return (map.lastName !== undefined && map.firstName !== undefined) || map.fullName !== undefined;
+}
+
+/**
+ * Finds the header row among the first few rows (sheets often have a title or blank
+ * rows above it): the first row naming the name column(s), else the row matching the
+ * most known headers, else null (no header — every row is data).
+ */
+export function detectHeaderRow(rows: string[][]): number | null {
+  let best: { index: number; matches: number } | null = null;
+  for (const [index, row] of rows.slice(0, HEADER_SCAN_ROWS).entries()) {
+    const map = mapParticipantHeaders(row);
+    if (nameColumnsFound(map)) return index;
+    const matches = Object.keys(map).length;
+    if (matches > 0 && (!best || matches > best.matches)) best = { index, matches };
+  }
+  return best?.index ?? null;
+}
+
+/** Fills in the column mapping from the header row (unrecognized headers are ignored). */
+export function autoMapColumns(
+  rows: string[][],
+  headerRow: number | null,
+  questions: { id: string; label: string }[]
+): (ImportField | null)[] {
+  const width = Math.max(0, ...rows.map((r) => r.length));
+  const columns: (ImportField | null)[] = Array(width).fill(null);
+  if (headerRow === null) {
+    // No headers: a plain list of names, one per line
+    if (width === 1) columns[0] = "fullName";
+    return columns;
+  }
+  const header = rows[headerRow] ?? [];
+  const map = mapParticipantHeaders(header);
+  // Separate name columns win over a full-name column
+  if (map.lastName !== undefined && map.firstName !== undefined) delete map.fullName;
+  for (const [column, index] of Object.entries(map)) columns[index] = column as ParticipantColumn;
+  for (const { question, index } of mapQuestionHeaders(header, questions)) columns[index] = `q:${question.id}`;
+  return columns;
+}
+
+// Surname particles kept with the last name: "Juan Dela Cruz", "Ana de los Santos"
+const SURNAME_PARTICLES = new Set([
+  "de", "del", "dela", "della", "delos", "la", "las", "los", "san", "sta", "sta.", "sto", "sto.", "santa", "santo", "van", "von", "da", "di", "du",
+]);
+
+/** "Dela Cruz, Juan" or "Juan Dela Cruz" → first/last. A single word comes back as a first name only. */
+export function splitFullName(raw: string): { firstName: string; lastName: string } {
+  const name = raw.trim().replace(/\s+/g, " ");
+  const comma = name.indexOf(",");
+  if (comma !== -1) return { lastName: name.slice(0, comma).trim(), firstName: name.slice(comma + 1).trim() };
+  const words = name.split(" ");
+  if (words.length < 2) return { firstName: name, lastName: "" };
+  let start = words.length - 1;
+  while (start > 1 && SURNAME_PARTICLES.has(words[start - 1].toLowerCase())) start--;
+  return { firstName: words.slice(0, start).join(" "), lastName: words.slice(start).join(" ") };
+}
+
 function escapeCsvField(value: string): string {
   if (/[",\r\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -106,12 +201,17 @@ export function buildParticipantImportTemplate(questionLabels: string[] = []): s
   ]);
 }
 
-/** Excel copy-pastes and "Text (Tab delimited)" saves use tabs; sniff the header line. */
+/**
+ * .csv/.txt can be comma- or tab-delimited (Excel copy-pastes and "Text (Tab delimited)"
+ * saves use tabs). Sniffs the first few lines, not just the first, since a title line
+ * above the header often has neither: the delimiter found on more lines wins.
+ */
 function detectDelimiter(text: string): "," | "\t" {
-  const firstLine = text.slice(0, text.search(/\r?\n|$/));
-  const tabs = firstLine.split("\t").length;
-  const commas = firstLine.split(",").length;
-  return tabs > commas ? "\t" : ",";
+  const lines = text.split(/\r?\n/, HEADER_SCAN_ROWS);
+  const score = (d: string) => [lines.filter((l) => l.includes(d)).length, lines.join("").split(d).length];
+  const [tabLines, tabs] = score("\t");
+  const [commaLines, commas] = score(",");
+  return tabLines > commaLines || (tabLines === commaLines && tabs > commas) ? "\t" : ",";
 }
 
 export function parseCsv(input: string): string[][] {

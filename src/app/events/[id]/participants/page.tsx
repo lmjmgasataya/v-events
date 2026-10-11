@@ -81,7 +81,7 @@ export default async function ParticipantsPage({
           >
             Export CSV
           </a>
-          <ImportParticipantsModal eventId={event.id} questionLabels={form.questions.map((q) => q.label)} />
+          <ImportParticipantsModal eventId={event.id} questions={form.questions.map((q) => ({ id: q.id, label: q.label }))} />
           <AddParticipantModal eventId={event.id} form={form} />
         </div>
       </div>

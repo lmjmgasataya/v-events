@@ -18,7 +18,7 @@ export function ParticipantFields({
 }: {
   form: EventFormConfig;
   defaultValues?: Partial<Participant>;
-  /** Public form: contact number and required questions must be filled in. */
+  /** Public form: required questions (and contact number, if the form requires it) must be filled in. */
   strict?: boolean;
   showStatus?: boolean;
 }) {
@@ -36,17 +36,19 @@ export function ParticipantFields({
           autoComplete="nickname"
         />
       )}
-      <Field
-        label="Contact number"
-        name="contactNumber"
-        type="tel"
-        required={strict}
-        pattern={MOBILE_NUMBER_PATTERN}
-        title={MOBILE_NUMBER_HELP}
-        placeholder="09XXXXXXXXX"
-        defaultValue={defaultValues?.contactNumber}
-        autoComplete="tel"
-      />
+      {form.showContactNumber && (
+        <Field
+          label="Contact number"
+          name="contactNumber"
+          type="tel"
+          required={strict && form.requireContactNumber}
+          pattern={MOBILE_NUMBER_PATTERN}
+          title={MOBILE_NUMBER_HELP}
+          placeholder="09XXXXXXXXX"
+          defaultValue={defaultValues?.contactNumber}
+          autoComplete="tel"
+        />
+      )}
       {form.showServiceAttended && <ServiceSelect defaultValue={defaultValues?.serviceAttended} />}
       {form.showLifestage && (
         <Select label="Lifestage" name="lifestage" options={LIFESTAGE_OPTIONS} defaultValue={defaultValues?.lifestage} />

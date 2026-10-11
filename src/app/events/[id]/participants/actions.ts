@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
-import { mapParticipantHeaders, mapQuestionHeaders, parseCsv } from "@/lib/csv";
+import { MAX_IMPORT_ROWS, PARTICIPANT_COLUMN_LABELS, splitFullName, type ImportMapping } from "@/lib/csv";
 import { parseRegistrationDate } from "@/lib/date";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { getEventForm } from "@/lib/events";
@@ -98,85 +98,104 @@ export async function deleteParticipant(eventId: number, participantId: number) 
   revalidateEvent(eventId);
 }
 
-export interface ImportRowError {
+export type ImportRowStatus = "new" | "duplicate" | "error";
+
+export interface ImportPreviewRow {
+  /** Row number in the file (1-based, as a spreadsheet shows it). */
   row: number;
-  message: string;
+  status: ImportRowStatus;
+  firstName: string;
+  lastName: string;
+  nickname: string;
+  contactNumber: string;
+  /** Why the row will be skipped (errors and duplicates). */
+  message?: string;
+}
+
+export interface ImportPreview {
+  rows: ImportPreviewRow[];
+  counts: Record<ImportRowStatus, number>;
 }
 
 export interface ImportSummary {
   imported: number;
   duplicates: number;
-  errors: ImportRowError[];
+  errors: number;
 }
 
 const INSERT_CHUNK_SIZE = 500;
+const IMPORT_FIELDS = new Set<string>(Object.keys(PARTICIPANT_COLUMN_LABELS));
+
+const personKey = (lastName: string, firstName: string, contactNumber: string) =>
+  `${lastName.toLowerCase()}|${firstName.toLowerCase()}|${contactNumber}`;
 
 /**
- * Imports participants from CSV (or tab-delimited) text. Columns are matched by
- * header name, not position, so column order doesn't matter. Rows matching an existing
- * participant (same name + contact number) are skipped and counted as duplicates,
- * so re-importing an updated sheet is safe.
+ * Turns the uploaded rows (parsed in the browser from CSV, tab-delimited text or .xlsx)
+ * into participant values using the column mapping confirmed on the preview, so column
+ * order and header wording don't matter. Repeats within the file are marked duplicates;
+ * rows already in the event are left to the unique index (see importParticipants).
  *
  * Contact numbers are kept as-is (minus spaces/dashes) rather than strictly validated,
- * since imported sheets often carry legacy formats. Columns titled like one of the
- * event's custom form questions fill in its answer (checkboxes: "; "-separated).
+ * since imported sheets often carry legacy formats. Form question columns fill in that
+ * question's answer (checkboxes: "; "-separated).
  */
-export async function importParticipantsCsv(eventId: number, csvText: string): Promise<ImportSummary> {
-  const session = await getSession();
-  if (!session) redirect("/login");
+async function buildImportRows(eventId: number, rawRows: unknown, rawMapping: unknown) {
+  const mapping = (rawMapping && typeof rawMapping === "object" ? rawMapping : {}) as Partial<ImportMapping>;
+  const headerRow = Number.isInteger(mapping.headerRow) && mapping.headerRow! >= 0 ? mapping.headerRow! : null;
+  // The import modal refuses bigger files; this just bounds the work
+  const rows = (Array.isArray(rawRows) ? rawRows : [])
+    .slice(0, (headerRow ?? -1) + 1 + MAX_IMPORT_ROWS)
+    .map((r) => (Array.isArray(r) ? r.map((c) => (typeof c === "string" ? c : String(c ?? ""))) : []));
 
-  const rows = parseCsv(csvText);
-  if (rows.length === 0) return { imported: 0, duplicates: 0, errors: [{ row: 1, message: "The file is empty." }] };
+  const questions = new Map((await getEventForm(eventId)).questions.map((q) => [q.id, q]));
+  const columns = new Map<string, number>();
+  (Array.isArray(mapping.columns) ? mapping.columns : []).forEach((field, index) => {
+    if (typeof field !== "string" || columns.has(field)) return;
+    if (IMPORT_FIELDS.has(field) || (field.startsWith("q:") && questions.has(field.slice(2)))) columns.set(field, index);
+  });
 
-  const columns = mapParticipantHeaders(rows[0]);
-  if (columns.lastName === undefined || columns.firstName === undefined) {
-    return {
-      imported: 0,
-      duplicates: 0,
-      errors: [{ row: 1, message: 'Header row must include "Last Name" and "First Name" columns.' }],
-    };
-  }
-
-  const questionColumns = mapQuestionHeaders(rows[0], (await getEventForm(eventId)).questions);
-
-  const cell = (cols: string[], key: keyof typeof columns) => {
-    const index = columns[key];
-    return index === undefined ? "" : (cols[index] ?? "").trim();
-  };
-
-  const errors: ImportRowError[] = [];
-  const seen = new Set<string>();
-  let duplicates = 0;
+  const preview: ImportPreviewRow[] = [];
   const values: (typeof participants.$inferInsert)[] = [];
+  const valueRows: ImportPreviewRow[] = []; // preview row for each entry in values
+  const seen = new Set<string>();
   const now = new Date();
+  const hasNameColumns = (columns.has("lastName") && columns.has("firstName")) || columns.has("fullName");
 
-  rows.slice(1).forEach((cols, i) => {
-    const rowNum = i + 2; // header + 1-indexing
-    const lastName = cell(cols, "lastName");
-    const firstName = cell(cols, "firstName");
-    const contactNumber = normalizeContactNumber(cell(cols, "contactNumber"));
+  rows.forEach((cols, i) => {
+    if (headerRow !== null && i <= headerRow) return;
+    const cell = (field: string) => {
+      const index = columns.get(field);
+      return index === undefined ? "" : (cols[index] ?? "").trim();
+    };
 
-    if (!lastName || !firstName) {
-      errors.push({ row: rowNum, message: "Last name and first name are required." });
-      return;
+    let lastName = cell("lastName");
+    let firstName = cell("firstName");
+    if (columns.has("fullName") && (!lastName || !firstName)) {
+      const split = splitFullName(cell("fullName"));
+      lastName ||= split.lastName;
+      firstName ||= split.firstName;
     }
+    const nickname = cell("nickname").slice(0, 40);
+    const contactNumber = normalizeContactNumber(cell("contactNumber"));
+    const row: ImportPreviewRow = { row: i + 1, status: "new", firstName, lastName, nickname, contactNumber };
+    preview.push(row);
 
-    const rawDate = cell(cols, "registeredAt");
+    const fail = (message: string) => Object.assign(row, { status: "error", message });
+    if (!hasNameColumns) return fail("Pick which column has the last and first name (or full name).");
+    if (!lastName || !firstName) return fail("Last name and first name are required.");
+
+    const rawDate = cell("registeredAt");
     const registeredAt = rawDate ? parseRegistrationDate(rawDate) : now;
-    if (!registeredAt) {
-      errors.push({ row: rowNum, message: `Couldn't read "${rawDate}" as a date of registration.` });
-      return;
-    }
+    if (!registeredAt) return fail(`Couldn't read "${rawDate}" as a date of registration.`);
 
-    const key = `${lastName.toLowerCase()}|${firstName.toLowerCase()}|${contactNumber}`;
-    if (seen.has(key)) {
-      duplicates++;
-      return;
-    }
+    const key = personKey(lastName, firstName, contactNumber);
+    if (seen.has(key)) return Object.assign(row, { status: "duplicate", message: "Repeated in this file." });
     seen.add(key);
 
     const answers: Answers = {};
-    for (const { question, index } of questionColumns) {
+    for (const [field, index] of columns) {
+      const question = field.startsWith("q:") ? questions.get(field.slice(2)) : undefined;
+      if (!question) continue;
       const answer = parseAnswerText(question.type, cols[index] ?? "");
       if (answer !== undefined) answers[question.id] = answer;
     }
@@ -185,16 +204,60 @@ export async function importParticipantsCsv(eventId: number, csvText: string): P
       eventId,
       lastName,
       firstName,
-      nickname: cell(cols, "nickname").slice(0, 40),
+      nickname,
       contactNumber,
-      serviceAttended: normalizeService(cell(cols, "serviceAttended")),
-      lifestage: cell(cols, "lifestage") || null,
-      status: cell(cols, "status") || DEFAULT_STATUS,
+      serviceAttended: normalizeService(cell("serviceAttended")),
+      lifestage: cell("lifestage") || null,
+      status: cell("status") || DEFAULT_STATUS,
       registeredAt,
       answers,
       source: "csv",
     });
+    valueRows.push(row);
   });
+
+  return { preview, values, valueRows };
+}
+
+function countStatuses(rows: ImportPreviewRow[]): Record<ImportRowStatus, number> {
+  const counts = { new: 0, duplicate: 0, error: 0 };
+  for (const r of rows) counts[r.status]++;
+  return counts;
+}
+
+/** Dry run for the import confirmation step: what each row will do, without saving anything. */
+export async function previewParticipantImport(eventId: number, rows: string[][], mapping: ImportMapping): Promise<ImportPreview> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const { preview, valueRows } = await buildImportRows(eventId, rows, mapping);
+
+  // Same rule as er_participants_event_person_uq
+  const existing = await db
+    .select({ lastName: participants.lastName, firstName: participants.firstName, contactNumber: participants.contactNumber })
+    .from(participants)
+    .where(eq(participants.eventId, eventId));
+  const existingKeys = new Set(existing.map((p) => personKey(p.lastName, p.firstName, p.contactNumber)));
+  for (const row of valueRows) {
+    if (existingKeys.has(personKey(row.lastName, row.firstName, row.contactNumber))) {
+      Object.assign(row, { status: "duplicate", message: "Already in this event." });
+    }
+  }
+
+  return { rows: preview, counts: countStatuses(preview) };
+}
+
+/**
+ * Imports the rows confirmed on the preview. Rows matching an existing participant
+ * (same name + contact number) are skipped and counted as duplicates, so re-importing
+ * an updated sheet is safe.
+ */
+export async function importParticipants(eventId: number, rows: string[][], mapping: ImportMapping): Promise<ImportSummary> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const { preview, values } = await buildImportRows(eventId, rows, mapping);
+  const counts = countStatuses(preview);
 
   let imported = 0;
   for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
@@ -206,10 +269,9 @@ export async function importParticipantsCsv(eventId: number, csvText: string): P
       .onConflictDoNothing()
       .returning({ id: participants.id });
     imported += inserted.length;
-    duplicates += chunk.length - inserted.length;
   }
 
   if (imported > 0) revalidateEvent(eventId);
 
-  return { imported, duplicates, errors };
+  return { imported, duplicates: counts.duplicate + (values.length - imported), errors: counts.error };
 }

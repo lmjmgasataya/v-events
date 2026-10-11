@@ -8,8 +8,8 @@ import { normalizeService } from "@/lib/services";
 export interface ParticipantInput {
   lastName: string;
   firstName: string;
-  contactNumber: string;
   // undefined = the event's form doesn't ask this, so leave the stored value alone
+  contactNumber: string | undefined;
   nickname: string | undefined;
   serviceAttended: string | undefined;
   lifestage: string | undefined;
@@ -28,7 +28,7 @@ export function readParticipantInput(formData: FormData, form: EventFormConfig):
   return {
     lastName: str(formData, "lastName"),
     firstName: str(formData, "firstName"),
-    contactNumber: normalizeContactNumber(str(formData, "contactNumber")),
+    contactNumber: form.showContactNumber ? normalizeContactNumber(str(formData, "contactNumber")) : undefined,
     nickname: form.showNickname ? str(formData, "nickname").slice(0, MAX_NICKNAME_LENGTH) : undefined,
     // "Others" in the dropdown → use the typed "please specify" text instead (see ServiceSelect)
     serviceAttended: !form.showServiceAttended
@@ -42,12 +42,17 @@ export function readParticipantInput(formData: FormData, form: EventFormConfig):
   };
 }
 
-/** Strips spaces/dashes/parens so "0917 123 4567" and "0917-123-4567" dedupe together. */
+/**
+ * Strips spaces/dashes/parens so "0917 123 4567" and "0917-123-4567" dedupe together.
+ * Restores the leading 0 spreadsheets drop when a mobile number is stored as a number
+ * (9171234567 → 09171234567).
+ */
 export function normalizeContactNumber(raw: string): string {
-  return raw.replace(/[\s\-().]/g, "");
+  const digits = raw.replace(/[\s\-().]/g, "");
+  return /^9\d{9}$/.test(digits) ? `0${digits}` : digits;
 }
 
-/** `strict` is for the public form: contact number and required questions must be filled in. */
+/** `strict` is for the public form: required questions (and contact number, if the form requires it) must be filled in. */
 export function validateParticipantInput(
   input: ParticipantInput,
   form: EventFormConfig,
@@ -55,7 +60,9 @@ export function validateParticipantInput(
 ): string | null {
   if (!input.lastName) return "Last name is required.";
   if (!input.firstName) return "First name is required.";
-  if (strict && !input.contactNumber) return "Contact number is required.";
+  if (strict && form.showContactNumber && form.requireContactNumber && !input.contactNumber) {
+    return "Contact number is required.";
+  }
   if (input.contactNumber && !MOBILE_NUMBER_REGEX.test(input.contactNumber)) return MOBILE_NUMBER_HELP;
   return validateAnswers(input.answers, form.questions, { strict });
 }
@@ -69,7 +76,7 @@ export function toParticipantValues(input: ParticipantInput) {
   return {
     lastName: input.lastName,
     firstName: input.firstName,
-    contactNumber: input.contactNumber,
+    ...(input.contactNumber !== undefined && { contactNumber: input.contactNumber }),
     ...(input.nickname !== undefined && { nickname: input.nickname }),
     ...(input.serviceAttended !== undefined && { serviceAttended: normalizeService(input.serviceAttended) }),
     ...(input.lifestage !== undefined && { lifestage: input.lifestage || null }),

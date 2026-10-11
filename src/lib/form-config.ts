@@ -1,9 +1,10 @@
 // Per-event registration form ("like Google Forms"). Pure types/helpers with no
 // server-only imports, safe to use from Client Components.
 //
-// First name, last name and contact number are always asked (they're the dedup key
-// and what check-in searches on). Nickname (printed on the name tag), service attended
-// and lifestage can be switched off per event, and any number of custom questions can be added after them.
+// First name and last name are always asked (with the contact number they're the dedup
+// key). Contact number (optionally required on the public form), nickname (printed on the
+// name tag), service attended and lifestage can be switched off per event, and any number
+// of custom questions can be added after them.
 // Answers live in er_participants.answers, keyed by question id.
 
 export const QUESTION_TYPES = [
@@ -45,6 +46,9 @@ export interface FormQuestion {
 }
 
 export interface EventFormConfig {
+  showContactNumber: boolean;
+  /** Public form only; ignored when showContactNumber is off. */
+  requireContactNumber: boolean;
   showNickname: boolean;
   showServiceAttended: boolean;
   showLifestage: boolean;
@@ -56,6 +60,8 @@ export type AnswerValue = string | string[];
 export type Answers = Record<string, AnswerValue>;
 
 export const DEFAULT_FORM_CONFIG: EventFormConfig = {
+  showContactNumber: true,
+  requireContactNumber: true,
   showNickname: true,
   showServiceAttended: true,
   showLifestage: true,
@@ -123,6 +129,8 @@ export function normalizeFormConfig(raw: unknown): EventFormConfig {
   }
 
   return {
+    showContactNumber: obj.showContactNumber !== false,
+    requireContactNumber: obj.requireContactNumber !== false,
     showNickname: obj.showNickname !== false,
     showServiceAttended: obj.showServiceAttended !== false,
     showLifestage: obj.showLifestage !== false,

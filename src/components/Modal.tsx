@@ -11,7 +11,8 @@ export function Modal({
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-  wide?: boolean;
+  /** true → max-w-2xl, "xl" → max-w-4xl (tables). */
+  wide?: boolean | "xl";
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -30,7 +31,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-xl`}
+        className={`w-full ${wide === "xl" ? "max-w-4xl" : wide ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-xl`}
       >
         <div className="flex items-start justify-between mb-4">
           <h3 className="text-lg font-semibold text-er-navy">{title}</h3>

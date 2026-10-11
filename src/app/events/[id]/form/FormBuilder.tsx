@@ -161,15 +161,36 @@ export function FormBuilder({
           <section className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-gray-700">Standard fields</h3>
             <p className="text-xs text-gray-500 mb-3">
-              Name and contact number are always asked — they identify the person and power check-in search.
+              Name is always asked. Contact number helps tell apart people with the same name and can be searched at check-in.
             </p>
             <ul className="divide-y divide-gray-100 text-sm">
-              {["First name", "Last name", "Contact number"].map((label) => (
+              {["First name", "Last name"].map((label) => (
                 <li key={label} className="flex items-center justify-between py-2">
                   <span className="text-gray-800">{label}</span>
                   <span className="text-xs text-gray-400">Always on</span>
                 </li>
               ))}
+              <li className="flex items-center justify-between gap-3 py-2">
+                <span className="text-gray-800">Contact number</span>
+                <div className="flex items-center gap-4">
+                  {config.showContactNumber && (
+                    <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={config.requireContactNumber}
+                        onChange={(e) => setConfig((c) => ({ ...c, requireContactNumber: e.target.checked }))}
+                        className="accent-er-navy"
+                      />
+                      Required
+                    </label>
+                  )}
+                  <Toggle
+                    checked={config.showContactNumber}
+                    onChange={(v) => setConfig((c) => ({ ...c, showContactNumber: v }))}
+                    label="Ask contact number"
+                  />
+                </div>
+              </li>
               <li className="flex items-center justify-between py-2">
                 <span className="text-gray-800">
                   Nickname <span className="text-xs text-gray-400">· printed on the name tag</span>
