@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/date";
 import { StatCard, percent } from "@/components/StatCard";
 import { BreakdownTable } from "@/components/BreakdownTable";
 import { PrintButton } from "@/components/PrintButton";
+import { ExportParticipantsMenu } from "../ExportParticipantsMenu";
 
 function hourLabel(hour: number) {
   const suffix = hour < 12 ? "AM" : "PM";
@@ -33,12 +34,7 @@ export default async function EventReportPage({ params }: { params: Promise<{ id
   return (
     <div className="flex flex-col gap-6">
       <div className="print:hidden flex justify-end gap-2">
-        <a
-          href={`/events/${event.id}/export?type=participants`}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
-        >
-          Export participants CSV
-        </a>
+        <ExportParticipantsMenu eventId={event.id} disabled={counts.registered === 0} label="Export participants" />
         <PrintButton />
       </div>
 

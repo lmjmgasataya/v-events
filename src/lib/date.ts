@@ -1,7 +1,7 @@
 // Pure date helpers with no server-only imports, safe to use from Client Components.
 // Asia/Manila is fixed UTC+8 with no DST, so conversions are a plain offset shift.
 
-const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+export const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 const TZ = "Asia/Manila";
 
 export function formatDateTime(date: Date | string | null | undefined): string {

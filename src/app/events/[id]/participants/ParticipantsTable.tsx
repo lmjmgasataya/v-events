@@ -47,7 +47,7 @@ export function ParticipantsTable({
   if (rows.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500">
-        No participants yet. Add them one by one, import a CSV, or share the public link.
+        No participants yet. Add them one by one, import a list (Excel, CSV, or .txt), or share the public link.
       </div>
     );
   }

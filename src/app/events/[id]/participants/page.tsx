@@ -1,11 +1,12 @@
 import { and, asc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { participants } from "@/db/schema";
-import { getEventOrNotFound } from "@/lib/events";
+import { getEventCounts, getEventOrNotFound } from "@/lib/events";
 import { normalizeFormConfig } from "@/lib/form-config";
 import { SearchBox } from "@/components/SearchBox";
 import { AddParticipantModal } from "./AddParticipantModal";
 import { ImportParticipantsModal } from "./ImportParticipantsModal";
+import { ExportParticipantsMenu } from "../ExportParticipantsMenu";
 import { ParticipantsTable } from "./ParticipantsTable";
 import { FilterLinks } from "./FilterLinks";
 import { parseSort } from "@/lib/sort";
@@ -55,17 +56,22 @@ export default async function ParticipantsPage({
   // contactNumber stores '' for unknown, so treat it as blank too
   const blank = sort === "contactNumber" ? sql`nullif(${column}, '')` : column;
 
-  const rows = await db
-    .select()
-    .from(participants)
-    .where(and(...conditions))
-    .orderBy(
-      sql`${blank} is null`, // blanks always last, whichever direction
-      sql`${primary} ${direction}`,
-      asc(column),
-      asc(participants.lastName),
-      asc(participants.firstName)
-    );
+  const [rows, counts] = await Promise.all([
+    db
+      .select()
+      .from(participants)
+      .where(and(...conditions))
+      .orderBy(
+        sql`${blank} is null`, // blanks always last, whichever direction
+        sql`${primary} ${direction}`,
+        asc(column),
+        asc(participants.lastName),
+        asc(participants.firstName)
+      ),
+    getEventCounts(event.id),
+  ]);
+  // Whole event, not just the search/filter results
+  const total = counts.get(event.id)?.registered ?? 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -75,12 +81,7 @@ export default async function ParticipantsPage({
           <FilterLinks current={filter} />
         </div>
         <div className="flex gap-2 shrink-0">
-          <a
-            href={`/events/${event.id}/export?type=participants`}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
-          >
-            Export CSV
-          </a>
+          <ExportParticipantsMenu eventId={event.id} disabled={total === 0} />
           <ImportParticipantsModal eventId={event.id} questions={form.questions.map((q) => ({ id: q.id, label: q.label }))} />
           <AddParticipantModal eventId={event.id} form={form} />
         </div>
