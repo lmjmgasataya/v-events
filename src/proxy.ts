@@ -28,5 +28,5 @@ export default async function proxy(request: NextRequest) {
 
 // `/e/*` (public event pages) and `/login` are intentionally excluded.
 export const config = {
-  matcher: ["/", "/events/:path*", "/reports/:path*"],
+  matcher: ["/", "/events/:path*", "/reports/:path*", "/devops-admin/:path*"],
 };

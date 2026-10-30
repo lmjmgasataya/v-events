@@ -60,6 +60,7 @@ Check-in lives on the participant row (one check-in per participant per event), 
   - `report/` — totals plus breakdowns by service / lifestage / status / source / each choice question, check-ins by hour, registrations by date (queries in `src/lib/reports.ts`)
   - `export/route.ts` — participants download, `?format=csv|xlsx` (`write-excel-file`; dates written as Manila wall time, text cells so contact numbers keep the leading 0). `ExportParticipantsMenu` (participants + report tabs) picks the format and is disabled while the event has no participants
 - `src/app/reports/` — all-events summary table; `export/route.ts` downloads it as CSV
+- `src/app/devops-admin/` — **admin-only** (`requireAdmin()` in the layout and every page; the export route returns 401/403). `page.tsx` — sizes of this app's `er_*` tables by area (plus the whole, shared database's size); `data/` — row counts + raw CSV dump per table (`data/export/route.ts?table=<er_name>`). Both are driven by the registry in `src/lib/devopsTables.ts`: **add every new `er_` table there**, with secret columns (hashes, access tokens) in `omit`. Linked from the header for admins
 - `src/app/e/[slug]/` — **public** event page + self-registration (`registerForEvent`), `success/` confirmation
 - `src/app/login/` — staff login
 
@@ -69,7 +70,7 @@ Check-in lives on the participant row (one check-in per participant per event), 
 const session = await getSession();
 if (!session) redirect("/login");
 ```
-`src/proxy.ts` additionally guards `/`, `/events/*`, `/reports/*`. `/e/*` and `/login` must stay public.
+`src/proxy.ts` additionally guards `/`, `/events/*`, `/reports/*`, `/devops-admin/*`. Admin-only screens also check `session.role === "admin"`. `/e/*` and `/login` must stay public.
 
 **Mutations use Server Actions**, not API routes. Route handlers exist only for CSV/Excel downloads and `api/health`.
 
