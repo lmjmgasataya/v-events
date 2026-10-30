@@ -36,11 +36,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     <Link href="/reports" className="text-gray-500 hover:text-er-navy transition">
                       Reports
                     </Link>
-                    {session.role === "admin" && (
-                      <Link href="/devops-admin" className="text-gray-500 hover:text-er-navy transition">
-                        Devops
-                      </Link>
-                    )}
                   </nav>
                 </div>
                 <div className="flex items-center gap-4">
