@@ -26,6 +26,13 @@ export function formatDate(date: Date | string | null | undefined): string {
   });
 }
 
+/** An event's day(s), e.g. for the name tag: "Nov 8, 2026", or "Nov 8, 2026 – Nov 9, 2026" when it ends on a later day. */
+export function formatEventDays(startsAt: Date | string, endsAt?: Date | string | null): string {
+  const start = formatDate(startsAt);
+  const end = endsAt ? formatDate(endsAt) : start;
+  return end === start ? start : `${start} – ${end}`;
+}
+
 export function formatTime(date: Date | string | null | undefined): string {
   if (!date) return "—";
   return new Date(date).toLocaleTimeString("en-PH", { timeZone: TZ, hour: "numeric", minute: "2-digit" });

@@ -13,7 +13,12 @@ import {
   parseLabelSize,
   printNameTag,
   type LabelSize,
+  type NameTagData,
+  type NameTagPerson,
 } from "@/lib/nametag";
+import { nametagName } from "@/lib/participants";
+
+const SAMPLE_PERSON: NameTagPerson = { name: "Juan", fullName: "Juan Dela Cruz" };
 
 // Name tag settings are remembered per device (localStorage): only the laptop with the
 // printer should auto-print, and the label size depends on the labels loaded in it.
@@ -60,7 +65,8 @@ const PX_PER_MM = 96 / 25.4;
  * The tag from the same markup that gets printed, scaled to fill the width of its
  * container (keeping the label's proportions).
  */
-export function NameTagPreview({ eventName, name, size }: { eventName: string; name: string; size: LabelSize }) {
+export function NameTagPreview(tag: NameTagData) {
+  const { size } = tag;
   const boxRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -83,7 +89,7 @@ export function NameTagPreview({ eventName, name, size }: { eventName: string; n
       <div
         className="absolute left-0 top-0 origin-top-left"
         style={{ transform: `scale(${scale})` }}
-        dangerouslySetInnerHTML={{ __html: nameTagHtml({ eventName, name, size }) }}
+        dangerouslySetInnerHTML={{ __html: nameTagHtml(tag) }}
       />
     </div>
   );
@@ -91,23 +97,32 @@ export function NameTagPreview({ eventName, name, size }: { eventName: string; n
 
 export function NameTagPanel({
   eventName,
+  eventDate,
   autoPrint,
   onAutoPrintChange,
   size,
   onSizeChange,
-  lastName,
+  lastTag,
 }: {
   eventName: string;
+  eventDate: string;
   autoPrint: boolean;
   onAutoPrintChange: (on: boolean) => void;
   size: LabelSize;
   onSizeChange: (size: LabelSize) => void;
-  /** Name tag name of the most recent check-in, shown in the preview until the user types one. */
-  lastName: string | null;
+  /** Name tag of the most recent check-in, shown in the preview until the user types a name. */
+  lastTag: NameTagPerson | null;
 }) {
   const [open, setOpen] = useState(false);
+  // A typed sample is a full name; its big name is worked out as for someone with no nickname
   const [sample, setSample] = useState("");
-  const previewName = sample.trim() || lastName || "Juan";
+  const typed = sample.trim();
+  const preview: NameTagData = {
+    eventName,
+    eventDate,
+    ...(typed ? { name: nametagName({ firstName: typed }), fullName: typed } : (lastTag ?? SAMPLE_PERSON)),
+    size,
+  };
   const sizeLabel = `${size.widthMm} × ${size.heightMm} mm`;
 
   return (
@@ -131,7 +146,7 @@ export function NameTagPanel({
       {open && (
         <div className="border-t border-gray-100 px-4 py-4 grid gap-5 md:grid-cols-2">
           <div className="min-w-0">
-            <NameTagPreview eventName={eventName} name={previewName} size={size} />
+            <NameTagPreview {...preview} />
             <p className="mt-1 text-xs text-gray-400">Preview, enlarged · prints at {sizeLabel}</p>
           </div>
           <div className="flex flex-col gap-3 text-sm min-w-0">
@@ -163,26 +178,27 @@ export function NameTagPanel({
             </div>
             <div>
               <label htmlFor="nametag-sample" className="block text-sm font-medium text-gray-700 mb-1">
-                Preview a name
+                Preview a full name
               </label>
               <input
                 id="nametag-sample"
                 value={sample}
                 onChange={(e) => setSample(e.target.value)}
                 maxLength={40}
-                placeholder={lastName || "Juan"}
+                placeholder={(lastTag ?? SAMPLE_PERSON).fullName}
                 className={inputCls}
               />
             </div>
             <button
               type="button"
-              onClick={() => printNameTag({ eventName, name: previewName, size })}
+              onClick={() => printNameTag(preview)}
               className={`${secondaryBtnCls} self-start`}
             >
               Test print
             </button>
             <p className="text-xs text-gray-500 leading-relaxed">
-              Shows the nickname, or the first word of the first name if there&apos;s none. Auto-print and label size are saved on this
+              Shows the event name and date, then the nickname big (or the first word of the first name if
+              there&apos;s none) with the full name under it. Auto-print and label size are saved on this
               device only — turn auto-print on just on the laptop connected to the label printer. To print without the
               print dialog, start Chrome with <code className="rounded bg-gray-100 px-1">--kiosk-printing</code> and set
               the label printer as the default printer, with the same paper size and no margins.

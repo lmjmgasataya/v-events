@@ -10,8 +10,8 @@ import { FormError, inputCls, primaryBtnCls, secondaryBtnCls } from "@/component
 import { SubmitButton } from "@/components/SubmitButton";
 import { formatTime } from "@/lib/date";
 import type { EventFormConfig } from "@/lib/form-config";
-import { printNameTag } from "@/lib/nametag";
-import { nametagName } from "@/lib/participants";
+import { printNameTag, type NameTagPerson } from "@/lib/nametag";
+import { nametagFor } from "@/lib/participants";
 import { addWalkIn, checkIn, undoCheckIn } from "./actions";
 import { NameTagPanel, useAutoPrint, useLabelSize } from "./NameTagPanel";
 
@@ -36,11 +36,14 @@ function matches(row: CheckInRow, tokens: string[]) {
 export function CheckInWorkspace({
   eventId,
   eventName,
+  eventDate,
   roster,
   form,
 }: {
   eventId: number;
   eventName: string;
+  /** The event's day(s) for the name tag (formatEventDays). */
+  eventDate: string;
   roster: CheckInRow[];
   form: EventFormConfig;
 }) {
@@ -70,11 +73,11 @@ export function CheckInWorkspace({
   const searchRef = useRef<HTMLInputElement>(null);
   const [autoPrint, setAutoPrint] = useAutoPrint();
   const [labelSize, setLabelSize] = useLabelSize();
-  const [lastTagName, setLastTagName] = useState<string | null>(null);
+  const [lastTag, setLastTag] = useState<NameTagPerson | null>(null);
 
-  function printTag(name: string) {
-    setLastTagName(name);
-    printNameTag({ eventName, name, size: labelSize });
+  function printTag(person: NameTagPerson) {
+    setLastTag(person);
+    printNameTag({ eventName, eventDate, ...person, size: labelSize });
   }
 
   useEffect(() => {
@@ -99,8 +102,8 @@ export function CheckInWorkspace({
       if (result.ok || result.checkedInAt) keepResult(row.id, result.checkedInAt ?? null);
       if (result.ok) {
         showToast("success", `${row.firstName} ${row.lastName} checked in.`);
-        if (autoPrint) printTag(nametagName(row));
-        else setLastTagName(nametagName(row));
+        if (autoPrint) printTag(nametagFor(row));
+        else setLastTag(nametagFor(row));
         setQuery("");
         searchRef.current?.focus();
       } else {
@@ -152,11 +155,12 @@ export function CheckInWorkspace({
 
       <NameTagPanel
         eventName={eventName}
+        eventDate={eventDate}
         autoPrint={autoPrint}
         onAutoPrintChange={setAutoPrint}
         size={labelSize}
         onSizeChange={setLabelSize}
-        lastName={lastTagName}
+        lastTag={lastTag}
       />
 
       <input
@@ -189,7 +193,7 @@ export function CheckInWorkspace({
                 pending={pending}
                 onCheckIn={handleCheckIn}
                 onUndo={handleUndo}
-                onPrint={(r) => printTag(nametagName(r))}
+                onPrint={(r) => printTag(nametagFor(r))}
               />
             ))}
           </ul>
@@ -201,7 +205,7 @@ export function CheckInWorkspace({
           eventId={eventId}
           form={form}
           onClose={() => setWalkInOpen(false)}
-          onAdded={(name) => (autoPrint ? printTag(name) : setLastTagName(name))}
+          onAdded={(person) => (autoPrint ? printTag(person) : setLastTag(person))}
         />
       )}
     </div>
@@ -282,7 +286,7 @@ function WalkInModal({
   eventId: number;
   form: EventFormConfig;
   onClose: () => void;
-  onAdded: (nametag: string) => void;
+  onAdded: (nametag: NameTagPerson) => void;
 }) {
   const [state, action] = useActionState(addWalkIn.bind(null, eventId), undefined);
   useToastOnResult(state?.success ? state : undefined);

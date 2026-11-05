@@ -100,3 +100,8 @@ export function nametagName(p: { firstName: string; nickname?: string | null }) 
 export function fullName(p: { firstName: string; lastName: string }) {
   return `${p.firstName} ${p.lastName}`;
 }
+
+/** What a name tag shows for this person: the big name (nametagName) and their full name. */
+export function nametagFor(p: { firstName: string; lastName: string; nickname?: string | null }) {
+  return { name: nametagName(p), fullName: fullName(p) };
+}

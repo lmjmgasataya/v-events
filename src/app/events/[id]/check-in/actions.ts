@@ -9,7 +9,8 @@ import { getSession } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { formatTime } from "@/lib/date";
 import { getEventForm } from "@/lib/events";
-import { nametagName, readParticipantInput, toParticipantValues, validateParticipantInput } from "@/lib/participants";
+import { nametagFor, readParticipantInput, toParticipantValues, validateParticipantInput } from "@/lib/participants";
+import type { NameTagPerson } from "@/lib/nametag";
 
 /** On "already checked in", `checkedInAt` is the existing check-in, so the page can show it. */
 export type CheckInResult = { ok: true; checkedInAt: string } | { ok: false; error: string; checkedInAt?: string };
@@ -57,7 +58,7 @@ export async function undoCheckIn(eventId: number, participantId: number) {
     .where(and(eq(participants.id, participantId), eq(participants.eventId, eventId)));
 }
 
-export type WalkInState = { error?: string; success?: string; nametag?: string } | undefined;
+export type WalkInState = { error?: string; success?: string; nametag?: NameTagPerson } | undefined;
 
 /** Adds someone who wasn't registered and checks them in immediately. */
 export async function addWalkIn(eventId: number, _: WalkInState, formData: FormData): Promise<WalkInState> {
@@ -91,6 +92,6 @@ export async function addWalkIn(eventId: number, _: WalkInState, formData: FormD
   revalidatePath("/");
   return {
     success: `${input.firstName} ${input.lastName} added and checked in.`,
-    nametag: nametagName({ firstName: input.firstName, nickname: input.nickname }),
+    nametag: nametagFor(input),
   };
 }
