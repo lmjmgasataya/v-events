@@ -47,8 +47,21 @@ export function CheckInWorkspace({
   const [query, setQuery] = useState("");
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Check-ins/undos confirmed since the last server render (the actions don't re-render the
+  // page). A new `roster` from the periodic refresh already includes them, so they reset then.
+  const [confirmed, setConfirmed] = useState<{ base: CheckInRow[]; byId: Record<number, string | null> }>({
+    base: roster,
+    byId: {},
+  });
+  const currentRoster = useMemo(() => {
+    const byId = confirmed.base === roster ? confirmed.byId : {};
+    return roster.map((r) => (r.id in byId ? { ...r, checkedInAt: byId[r.id] } : r));
+  }, [roster, confirmed]);
+  function keepResult(id: number, checkedInAt: string | null) {
+    setConfirmed((c) => ({ base: roster, byId: { ...(c.base === roster ? c.byId : {}), [id]: checkedInAt } }));
+  }
   const [optimisticRoster, setOptimistic] = useOptimistic(
-    roster,
+    currentRoster,
     (rows, update: { id: number; checkedInAt: string | null }) =>
       rows.map((r) => (r.id === update.id ? { ...r, checkedInAt: update.checkedInAt } : r))
   );
@@ -83,6 +96,7 @@ export function CheckInWorkspace({
     startTransition(async () => {
       setOptimistic({ id: row.id, checkedInAt: new Date().toISOString() });
       const result = await checkIn(eventId, row.id);
+      if (result.ok || result.checkedInAt) keepResult(row.id, result.checkedInAt ?? null);
       if (result.ok) {
         showToast("success", `${row.firstName} ${row.lastName} checked in.`);
         if (autoPrint) printTag(nametagName(row));
@@ -100,6 +114,7 @@ export function CheckInWorkspace({
     startTransition(async () => {
       setOptimistic({ id: row.id, checkedInAt: null });
       await undoCheckIn(eventId, row.id);
+      keepResult(row.id, null);
       showToast("success", `Check-in undone for ${row.firstName} ${row.lastName}.`);
     });
   }

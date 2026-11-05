@@ -11,7 +11,12 @@ import { formatTime } from "@/lib/date";
 import { getEventForm } from "@/lib/events";
 import { nametagName, readParticipantInput, toParticipantValues, validateParticipantInput } from "@/lib/participants";
 
-export type CheckInResult = { ok: true; checkedInAt: string } | { ok: false; error: string };
+/** On "already checked in", `checkedInAt` is the existing check-in, so the page can show it. */
+export type CheckInResult = { ok: true; checkedInAt: string } | { ok: false; error: string; checkedInAt?: string };
+
+// Check-in and undo don't revalidatePath: inside a Server Action that re-renders the whole
+// check-in page (roster and all) on the server for every tap. CheckInWorkspace keeps the result
+// itself; its periodic refresh and the other tabs (dynamic, fetched fresh) pick it up.
 
 export async function checkIn(eventId: number, participantId: number): Promise<CheckInResult> {
   const session = await getSession();
@@ -27,15 +32,17 @@ export async function checkIn(eventId: number, participantId: number): Promise<C
     )
     .returning({ checkedInAt: participants.checkedInAt });
 
-  revalidatePath(`/events/${eventId}`, "layout");
-
   if (!row) {
     const [existing] = await db
       .select({ checkedInAt: participants.checkedInAt })
       .from(participants)
       .where(and(eq(participants.id, participantId), eq(participants.eventId, eventId)));
     if (!existing) return { ok: false, error: "Participant not found." };
-    return { ok: false, error: `Already checked in at ${formatTime(existing.checkedInAt)}.` };
+    return {
+      ok: false,
+      error: `Already checked in at ${formatTime(existing.checkedInAt)}.`,
+      checkedInAt: existing.checkedInAt?.toISOString(),
+    };
   }
   return { ok: true, checkedInAt: row.checkedInAt!.toISOString() };
 }
@@ -48,8 +55,6 @@ export async function undoCheckIn(eventId: number, participantId: number) {
     .update(participants)
     .set({ checkedInAt: null, checkedInById: null })
     .where(and(eq(participants.id, participantId), eq(participants.eventId, eventId)));
-
-  revalidatePath(`/events/${eventId}`, "layout");
 }
 
 export type WalkInState = { error?: string; success?: string; nametag?: string } | undefined;
