@@ -58,6 +58,7 @@ function escapeHtml(s: string) {
 // off-center feed on the thermal printer doesn't cut anything off.
 const EDGE_MM = 2;
 const EVENT_FONT_MM = 3.6;
+const MIN_EVENT_FONT_MM = 2.5; // smallest the one-line event name shrinks to before it wraps
 const EVENT_LINE_HEIGHT = 1.2;
 const DATE_FONT_MM = 3;
 const DATE_LINE_HEIGHT = 1.2;
@@ -120,10 +121,12 @@ export function nameTagHtml({ eventName, eventDate, name, fullName, size }: Name
   const contentWidth = size.widthMm - EDGE_MM * 2;
   const contentHeight = size.heightMm - EDGE_MM * 2;
 
-  // Event name wraps to at most 2 lines; reserve whatever it actually takes
-  const eventWidthMm = (textWidthEm(eventName.toUpperCase(), 700) + eventName.length * 0.04) * EVENT_FONT_MM;
-  const eventLines = eventWidthMm > contentWidth ? 2 : 1;
-  const headerHeight = eventLines * EVENT_FONT_MM * EVENT_LINE_HEIGHT + DATE_FONT_MM * DATE_LINE_HEIGHT + HEADER_GAP_MM;
+  // Event name on one line, shrunk to fit; only one too long even at the smallest size wraps to 2 lines
+  const eventWidthEm = textWidthEm(eventName.toUpperCase(), 700) + eventName.length * 0.04;
+  const oneLineFontMm = (contentWidth * 0.97) / Math.max(eventWidthEm, 0.01);
+  const eventLines = oneLineFontMm >= MIN_EVENT_FONT_MM ? 1 : 2;
+  const eventFontMm = eventLines === 1 ? Math.min(EVENT_FONT_MM, oneLineFontMm) : MIN_EVENT_FONT_MM;
+  const headerHeight = eventLines * eventFontMm * EVENT_LINE_HEIGHT + DATE_FONT_MM * DATE_LINE_HEIGHT + HEADER_GAP_MM;
 
   // Inside the box: the big name, then the full name on one line (shrunk to fit if it's long)
   const boxInner = BOX_BORDER_MM + BOX_PADDING_MM;
@@ -138,8 +141,8 @@ export function nameTagHtml({ eventName, eventDate, name, fullName, size }: Name
   const { lines, sizeMm, stretch } = fitName(name.trim(), boxWidth, boxHeight - fullHeight - 0.5);
 
   return `<div style="box-sizing:border-box;width:${size.widthMm}mm;height:${size.heightMm}mm;padding:${EDGE_MM}mm;overflow:hidden;background:#fff;color:#000;font-family:${FONT_FAMILY};text-align:center;display:flex;flex-direction:column;">
-  <div style="font-size:${EVENT_FONT_MM}mm;font-weight:700;line-height:${EVENT_LINE_HEIGHT};text-transform:uppercase;letter-spacing:0.04em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(eventName)}</div>
-  <div style="font-size:${DATE_FONT_MM}mm;line-height:${DATE_LINE_HEIGHT};white-space:nowrap;overflow:hidden;margin-bottom:${HEADER_GAP_MM}mm;">${escapeHtml(eventDate)}</div>
+  <div style="text-align:left;font-size:${eventFontMm.toFixed(2)}mm;font-weight:700;line-height:${EVENT_LINE_HEIGHT};text-transform:uppercase;letter-spacing:0.04em;white-space:${eventLines === 1 ? "nowrap" : "normal"};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(eventName)}</div>
+  <div style="text-align:left;font-size:${DATE_FONT_MM}mm;line-height:${DATE_LINE_HEIGHT};white-space:nowrap;overflow:hidden;margin-bottom:${HEADER_GAP_MM}mm;">${escapeHtml(eventDate)}</div>
   <div style="box-sizing:border-box;flex:1;min-height:0;border:${BOX_BORDER_MM}mm solid #000;border-radius:${BOX_RADIUS_MM}mm;padding:${BOX_PADDING_MM}mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
     <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;">
       <div style="font-size:${sizeMm.toFixed(2)}mm;font-weight:${NAME_WEIGHT};line-height:${NAME_LINE_HEIGHT};white-space:nowrap;transform:scaleY(${stretch.toFixed(3)});">${lines.map(escapeHtml).join("<br>")}</div>
