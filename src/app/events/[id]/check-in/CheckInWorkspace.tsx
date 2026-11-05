@@ -25,8 +25,8 @@ export interface CheckInRow {
   checkedInAt: string | null;
 }
 
-// Pull in check-ins made from other devices
-const REFRESH_INTERVAL_MS = 20_000;
+// Pull in check-ins made from other devices (each refresh re-renders the page on the server, so keep it sparse)
+const REFRESH_INTERVAL_MS = 60_000;
 
 function matches(row: CheckInRow, tokens: string[]) {
   const haystack = `${row.firstName} ${row.nickname} ${row.lastName} ${row.contactNumber}`.toLowerCase();
